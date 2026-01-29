@@ -16,5 +16,6 @@ export default defineConfig({
     port: 8527,
     host: '0.0.0.0',
     strictPort: true,
+    allowedHosts: ['gt.kw-aigc.cn', 'localhost'],
   },
 });
