@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <filter id="paper-texture">
+      <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="5"/>
+      <feDiffuseLighting lighting-color="#f5e6c8" surfaceScale="2">
+        <feDistantLight azimuth="45" elevation="60"/>
+      </feDiffuseLighting>
+    </filter>
+    <pattern id="pattern" width="100" height="100" patternUnits="userSpaceOnUse">
+       <path d="M0 0h100v100H0z" fill="none"/>
+       <path d="M0 0h100v1H0z" fill="#C9A961" fill-opacity="0.2"/>
+    </pattern>
+  </defs>
+  
+  <rect width="1200" height="630" fill="#FDF8E8"/>
+  <rect width="1200" height="630" fill="url(#pattern)"/>
+  <rect width="1200" height="630" filter="url(#paper-texture)" opacity="0.4"/>
+  
+  <rect x="40" y="40" width="1120" height="550" fill="none" stroke="#2E4A62" stroke-width="4"/>
+  <rect x="50" y="50" width="1100" height="530" fill="none" stroke="#2E4A62" stroke-width="1"/>
+  
+  <path d="M40 100 V40 H100" stroke="#C9372C" stroke-width="8" fill="none"/>
+  <path d="M1160 40 H1100 V100" stroke="#C9372C" stroke-width="8" fill="none" transform="rotate(90 1160 40)"/>
+  <path d="M1160 590 V530 H1100" stroke="#C9372C" stroke-width="8" fill="none" transform="rotate(180 1160 590)"/>
+  <path d="M40 530 V590 H100" stroke="#C9372C" stroke-width="8" fill="none" transform="rotate(270 40 590)"/>
+
+  <g transform="translate(180, 315)">
+     <rect x="-100" y="-100" width="200" height="200" rx="20" fill="#C9372C" opacity="0.9"/>
+     <rect x="-85" y="-85" width="170" height="170" rx="10" fill="none" stroke="#F5E6C8" stroke-width="4"/>
+     <text x="0" y="-10" font-family="serif" font-size="80" fill="#F5E6C8" text-anchor="middle" font-weight="bold">&#x5B98;&#x9014;</text>
+     <text x="0" y="70" font-family="serif" font-size="80" fill="#F5E6C8" text-anchor="middle" font-weight="bold">&#x7B97;&#x7565;</text>
+  </g>
+  
+  <g transform="translate(450, 200)">
+    <text x="0" y="60" font-family="serif" font-size="80" fill="#2E4A62" font-weight="bold" letter-spacing="10">&#x5B98;&#x9014;&#x7B97;&#x7565;</text>
+    <text x="0" y="140" font-family="serif" font-size="40" fill="#5A4A3A" letter-spacing="4">&#x53E4;&#x4EE3;&#x804C;&#x573A;&#x8EAB;&#x4EFD;&#x6620;&#x5C04;&#x6307;&#x5357;</text>
+    
+    <line x1="0" y1="180" x2="600" y2="180" stroke="#C9A961" stroke-width="2"/>
+    
+    <g transform="translate(0, 240)">
+      <text x="0" y="0" font-family="sans-serif" font-size="28" fill="#8B7355">&#x2713; &#x85AA;&#x8D44;&#x8D2D;&#x4E70;&#x529B;&#x6362;&#x7B97;</text>
+      <text x="280" y="0" font-family="sans-serif" font-size="28" fill="#8B7355">&#x2713; &#x53E4;&#x4EE3;&#x5B98;&#x804C;&#x5BF9;&#x5E94;</text>
+      <text x="0" y="50" font-family="sans-serif" font-size="28" fill="#8B7355">&#x2713; &#x8DA3;&#x5473;&#x751F;&#x6210;&#x5224;&#x8BCD;</text>
+      <text x="280" y="50" font-family="sans-serif" font-size="28" fill="#8B7355">&#x2713; &#x7A7F;&#x8D8A;&#x751F;&#x6D3B;&#x6A21;&#x62DF;</text>
+    </g>
+  </g>
+</svg>
