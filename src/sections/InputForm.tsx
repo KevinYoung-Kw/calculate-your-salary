@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import type { UserInput } from '@/types';
 import { 
-  OCCUPATION_TYPE_OPTIONS,
   OVERTIME_OPTIONS, 
   WORK_YEARS_OPTIONS, 
   WORK_ENV_OPTIONS, 
@@ -9,7 +8,7 @@ import {
   CITY_TIER_OPTIONS,
   FAMILY_SIZE_OPTIONS
 } from '@/types';
-import { Scroll, Coins, Gift, Calendar, Building2, MapPin, Heart, Briefcase, User, Scale, Users } from 'lucide-react';
+import { Scroll, Coins, Gift, Calendar, Building2, MapPin, Heart, Briefcase, Scale, Users } from 'lucide-react';
 
 import { Footer } from '@/components/Footer';
 
@@ -98,8 +97,6 @@ interface InputFormProps {
 
 // 默认表单数据
 const DEFAULT_FORM_DATA: UserInput = {
-  occupationType: 'technical',
-  occupationDetail: '',
   annualSalary: 0,
   overtimeFreq: 'normal',
   bonus: 0,
@@ -142,7 +139,7 @@ export default function InputForm({ onSubmit }: InputFormProps) {
   const [showCacheHint, setShowCacheHint] = useState(false);
   useEffect(() => {
     const saved = loadFormData();
-    if (saved && (saved.annualSalary || saved.occupationDetail)) {
+    if (saved && saved.annualSalary) {
       setShowCacheHint(true);
       // 3秒后自动隐藏提示
       const timer = setTimeout(() => setShowCacheHint(false), 3000);
@@ -152,7 +149,7 @@ export default function InputForm({ onSubmit }: InputFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.occupationType && formData.annualSalary > 0) {
+    if (formData.annualSalary > 0) {
       // 提交时使用PPP计算后的汇率
       onSubmit({
         ...formData,
@@ -225,51 +222,6 @@ export default function InputForm({ onSubmit }: InputFormProps) {
 
             {/* 基本信息区域 */}
             <div className="space-y-4 sm:space-y-6">
-              {/* 职业类型（下拉选择）- 必填 */}
-              <div className="grid grid-cols-1 md:grid-cols-[130px_1fr] gap-1.5 sm:gap-2 md:gap-4 items-center">
-                <span className="text-[#5A4A3A] text-base sm:text-lg font-ancient flex items-center gap-1 whitespace-nowrap">
-                  <User className="w-4 h-4 sm:w-5 sm:h-5 text-[#8B7355] flex-shrink-0" />
-                  从业类型<RequiredMark />
-                </span>
-                <div className="relative">
-                  <select
-                    value={formData.occupationType}
-                    onChange={(e) => updateFormData({ ...formData, occupationType: e.target.value as UserInput['occupationType'] })}
-                    className="ancient-input w-full text-base sm:text-lg bg-transparent cursor-pointer appearance-none text-left pl-3 sm:pl-4"
-                    required
-                  >
-                    {OCCUPATION_TYPE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-[#8B7355]">
-                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                  </div>
-                  <p className="text-[10px] sm:text-xs text-[#8B7355] mt-1 pl-2 opacity-80">
-                   {OCCUPATION_TYPE_OPTIONS.find(o => o.value === formData.occupationType)?.examples}
-                  </p>
-                </div>
-              </div>
-              
-              {/* 具体职业 - 选填 */}
-              <div className="grid grid-cols-1 md:grid-cols-[130px_1fr] gap-1.5 sm:gap-2 md:gap-4 items-center">
-                <span className="text-[#5A4A3A] text-base sm:text-lg font-ancient flex items-center gap-1 whitespace-nowrap">
-                  <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-[#8B7355] flex-shrink-0" />
-                  具体职位<OptionalMark />
-                </span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={formData.occupationDetail || ''}
-                    onChange={(e) => updateFormData({ ...formData, occupationDetail: e.target.value })}
-                    placeholder="如：前端工程师、销售经理..."
-                    className="ancient-input w-full text-base sm:text-lg text-left pl-3 sm:pl-4"
-                  />
-                </div>
-              </div>
-
               {/* 年薪 - 必填 */}
               <div className="grid grid-cols-1 md:grid-cols-[130px_1fr] gap-1.5 sm:gap-2 md:gap-4 items-center">
                 <span className="text-[#5A4A3A] text-base sm:text-lg font-ancient flex items-center gap-1 whitespace-nowrap">

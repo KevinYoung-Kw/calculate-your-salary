@@ -4,17 +4,21 @@ import { FAMILY_SIZE_OPTIONS } from '@/types';
 import { 
   calculateAncientIdentity, 
   calculatePurchasingPower, 
-  generatePersonalizedComment,
   generateDailyLife,
   generateEnhancedVerdict,
-  getOccupationTypeConfig
+  getAdjustedHistoricalFigure,
+  calculateQualityOfLife,
+  normalizeQoL,
+  getQoLStars,
 } from '@/data/levelMapping';
 import { calculateLivingCosts } from '@/data/livingCost';
-import { getCostNarrative } from '@/data/sceneContent';
 import { generateShareText, copyToClipboard, getShareUrl } from '@/utils/shareConfig';
+import { classifyOccupationWithLevel } from '@/data/occupationClassifier';
+import { getEncouragementMessage } from '@/data/encouragementMessages';
+import { preloadImages, exportElementToImage, downloadImage, isMobileDevice } from '@/utils/imageExport';
+import { handleOptimizedShare, isWechat } from '@/utils/wechatDetect';
 import { Share2, RotateCcw, Landmark, Sun, Download, Copy, Check, ImageIcon, Calculator } from 'lucide-react';
 import { Footer } from '@/components/Footer';
-import { toPng } from 'html-to-image';
 
 interface ResultProps {
   userInput: UserInput;
@@ -37,10 +41,15 @@ export default function Result({ userInput, onReset }: ResultProps) {
     userInput.exchangeRate
   );
   const purchasingPower = calculatePurchasingPower(identity.salaryInTael);
-  const personalizedComment = generatePersonalizedComment(userInput);
   
-  // 获取职业大类对应的配置
-  const occupationConfig = useMemo(() => getOccupationTypeConfig(userInput.occupationType), [userInput.occupationType]);
+  // 计算生活质量指数和动态历史人物对照
+  const qol = useMemo(() => calculateQualityOfLife(userInput, identity.level), [userInput, identity.level]);
+  const normalizedQol = useMemo(() => normalizeQoL(qol), [qol]);
+  const qolStars = useMemo(() => getQoLStars(normalizedQol), [normalizedQol]);
+  const adjustedHistoricalFigure = useMemo(() => 
+    getAdjustedHistoricalFigure(identity.level, userInput), 
+    [identity.level, userInput]
+  );
   
   // 使用决策树生成一天的活动
   const dailyLifeParts = useMemo(() => generateDailyLife(
@@ -51,8 +60,19 @@ export default function Result({ userInput, onReset }: ResultProps) {
   // 生成增强版判词
   const enhancedVerdict = useMemo(() => generateEnhancedVerdict(
     identity.verdict,
-    userInput
-  ), [identity.verdict, userInput]);
+    userInput,
+    identity.level
+  ), [identity.verdict, userInput, identity.level]);
+  
+  // 计算官职类型和鼓励语
+  const occupationCategory = useMemo(() => 
+    classifyOccupationWithLevel(identity.title, identity.level),
+    [identity.title, identity.level]
+  );
+  const encouragementMessage = useMemo(() => 
+    getEncouragementMessage(occupationCategory),
+    [occupationCategory]
+  );
   
   // 计算生活成本
   const livingCosts = useMemo(() => calculateLivingCosts(
@@ -61,17 +81,12 @@ export default function Result({ userInput, onReset }: ResultProps) {
     userInput.cityTier
   ), [identity.salaryInTael, userInput.familySize, userInput.cityTier]);
   
-  // 获取生活成本描述
-  const costNarrative = useMemo(() => getCostNarrative(livingCosts.lifestyleLevel.id), [livingCosts.lifestyleLevel.id]);
   
   // 获取家庭人口描述
   const familySizeOption = useMemo(() => 
     FAMILY_SIZE_OPTIONS.find(opt => opt.value === userInput.familySize),
     [userInput.familySize]
   );
-  
-  // 获取显示用的职业名称
-  const displayOccupation = userInput.occupationDetail || occupationConfig.label;
   
   const today = new Date();
   const year = today.getFullYear();
@@ -97,7 +112,7 @@ export default function Result({ userInput, onReset }: ResultProps) {
     }
   }, [identity, livingCosts]);
 
-  // 原生分享
+  // 原生分享（优化版，支持微信检测）
   const handleNativeShare = useCallback(async () => {
     const shareData = {
       title: '官途算略 - 我的古代身份',
@@ -105,101 +120,99 @@ export default function Result({ userInput, onReset }: ResultProps) {
       url: getShareUrl(),
     };
     
-    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
-      try {
-        await navigator.share(shareData);
-      } catch (err) {
-        // 用户取消分享
-        console.log('分享取消');
-      }
-    } else {
-      // 不支持原生分享，使用复制链接
-      handleCopyLink();
-    }
+    // 使用优化的分享处理
+    await handleOptimizedShare(shareData, handleCopyLink);
   }, [identity, handleCopyLink]);
 
-  // 导出通关文牒图片
+  // 导出通关文牒图片（优化版）
   const handleExportImage = useCallback(async () => {
     if (!resultRef.current || isExporting) return;
     
     setIsExporting(true);
     try {
-      const dataUrl = await toPng(resultRef.current, {
-        quality: 1,
-        pixelRatio: 2,
+      // 1. 预加载图片
+      const imageSources = [
+        '/silver-ingot.webp',
+        '/rice-sack.webp',
+        '/pork-cut.webp',
+        '/cloth-bolt.webp',
+        '/house-ancient.webp',
+      ];
+      await preloadImages(imageSources);
+      
+      // 2. 导出图片
+      const dataUrl = await exportElementToImage(resultRef.current, {
         backgroundColor: '#FDF8E8',
-        style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left',
-        }
+        scale: isMobileDevice() ? 2 : 3,
+        quality: 0.95,
       });
       
-      const link = document.createElement('a');
-      link.download = `官途算略-${displayOccupation}-通关文牒.png`;
-      link.href = dataUrl;
-      link.click();
+      // 3. 下载图片
+      downloadImage(dataUrl, `官途算略-${identity.title}-通关文牒.png`);
     } catch (err) {
       console.error('导出失败', err);
-      alert('导出失败，请重试');
+      alert(isMobileDevice() 
+        ? '导出失败，请尝试截屏保存' 
+        : '导出失败，请重试或使用截图功能'
+      );
     } finally {
       setIsExporting(false);
     }
-  }, [displayOccupation, isExporting]);
+  }, [identity.title, isExporting]);
 
-  // 导出年度消费账本
+  // 导出年度消费账本（优化版）
   const handleExportAccountBook = useCallback(async () => {
     if (!accountBookRef.current || exportingBook) return;
     
     setExportingBook(true);
     try {
-      const dataUrl = await toPng(accountBookRef.current, {
-        quality: 1,
-        pixelRatio: 2,
+      // 预加载图片
+      const imageSources = [
+        '/rice-sack.webp',
+        '/pork-cut.webp',
+        '/cloth-bolt.webp',
+        '/house-ancient.webp',
+      ];
+      await preloadImages(imageSources);
+      
+      const dataUrl = await exportElementToImage(accountBookRef.current, {
         backgroundColor: '#FFFFFF',
-        filter: (node) => {
-          // 隐藏带有 data-export-ignore 属性的元素
-          return !node.dataset?.exportIgnore;
-        }
+        scale: isMobileDevice() ? 2 : 3,
+        filter: (node) => !node.dataset?.exportIgnore,
       });
       
-      const link = document.createElement('a');
-      link.download = `官途算略-${displayOccupation}-年度消费账本.png`;
-      link.href = dataUrl;
-      link.click();
+      downloadImage(dataUrl, `官途算略-${identity.title}-年度消费账本.png`);
     } catch (err) {
       console.error('导出失败', err);
-      alert('导出失败，请重试');
+      alert(isMobileDevice() ? '导出失败，请尝试截屏保存' : '导出失败，请重试');
     } finally {
       setExportingBook(false);
     }
-  }, [displayOccupation, exportingBook]);
+  }, [identity.title, exportingBook]);
 
-  // 导出账房算计图片
+  // 导出账房算计图片（优化版）
   const handleExportLivingCost = useCallback(async () => {
     if (!livingCostRef.current || exportingLivingCost) return;
     
     setExportingLivingCost(true);
     try {
-      const dataUrl = await toPng(livingCostRef.current, {
-        quality: 1,
-        pixelRatio: 2,
+      // 预加载图片
+      await preloadImages(['/silver-ingot.webp']);
+      
+      const dataUrl = await exportElementToImage(livingCostRef.current, {
         backgroundColor: '#FFFFFF',
-        filter: (node) => {
-          return !node.dataset?.exportIgnore;
-        }
+        scale: isMobileDevice() ? 2 : 3,
+        filter: (node) => !node.dataset?.exportIgnore,
       });
       
-      const link = document.createElement('a');
-      link.download = `官途算略-${displayOccupation}-账房算计.png`;
-      link.href = dataUrl;
-      link.click();
+      downloadImage(dataUrl, `官途算略-${identity.title}-账房算计.png`);
     } catch (err) {
       console.error('导出失败', err);
-      alert('导出失败，请重试');
+      alert(isMobileDevice() ? '导出失败，请尝试截屏保存' : '导出失败，请重试');
     } finally {
       setExportingLivingCost(false);
     }
-  }, [displayOccupation, exportingLivingCost]);
+  }, [identity.title, exportingLivingCost]);
 
   return (
     <div className="min-h-screen py-8 px-0 sm:px-4">
@@ -266,8 +279,7 @@ export default function Result({ userInput, onReset }: ResultProps) {
                   <div className="flex flex-col sm:flex-row sm:items-baseline">
                     <span className="text-[#8B7355] font-ancient text-lg sm:text-xl min-w-[3em] mb-1 sm:mb-0">照得：</span>
                     <div>
-                      今有<span className="font-bold text-[#2E4A62] mx-1 border-b border-[#2E4A62]">「{displayOccupation}」</span>一名，
-                      岁入<span className="font-bold text-[#C9372C] mx-1">{(identity.totalIncome).toLocaleString()}</span>元。
+                      今有士子一名，岁入<span className="font-bold text-[#C9372C] mx-1">{(identity.totalIncome).toLocaleString()}</span>元。
                     </div>
                   </div>
                   
@@ -275,7 +287,7 @@ export default function Result({ userInput, onReset }: ResultProps) {
                     <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-2">
                       <span className="text-[#5A4A3A] text-sm sm:text-base">折合纹银</span>
                       <div className="flex items-center gap-1">
-                        <img src="/silver-ingot.webp" alt="银两" className="w-6 h-6 sm:w-8 sm:h-8 inline-block" />
+                        <img src="/silver-ingot.webp" alt="银两" className="w-6 h-6 sm:w-8 sm:h-8 inline-block" crossOrigin="anonymous" />
                         <span className="font-bold text-2xl sm:text-3xl text-[#C9372C] font-ancient">{identity.salaryInTael}</span>
                         <span className="text-[#5A4A3A] text-sm sm:text-base">两</span>
                       </div>
@@ -285,36 +297,24 @@ export default function Result({ userInput, onReset }: ResultProps) {
                     </div>
                   </div>
                   
-                  {/* 古代角色对应 - 移动端优化 */}
+                  {/* 生活质量指数 */}
                   <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-[#2E4A62]/5 rounded border border-[#2E4A62]/10 relative">
                     <div className="absolute -left-1 top-3 sm:top-4 w-2 h-6 sm:h-8 bg-[#2E4A62] rounded-r"></div>
                     <div className="text-center sm:text-left">
-                      <div className="text-[#8B7355] font-ancient text-sm mb-2">古今对照</div>
-                      <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-3">
-                        <span className="font-bold text-[#2E4A62] text-base sm:text-lg">「{occupationConfig.label}」</span>
-                        <span className="text-[#C9A961] text-lg sm:hidden">↓</span>
-                        <span className="hidden sm:inline text-[#C9A961]">⇌</span>
-                        <span className="font-bold text-[#C9372C] text-lg sm:text-xl font-ancient">「{occupationConfig.ancientRole}」</span>
-                      </div>
+                      <div className="text-[#8B7355] font-ancient text-sm mb-2">生活质量</div>
+                      <p className="text-sm sm:text-base text-[#5A4A3A] leading-relaxed">
+                        综合加班强度、居所所在、仕途资历、工作环境及朝廷恩赏，
+                        生活质量指数为 <span className="font-bold text-[#C9372C] mx-1">{normalizedQol}</span> 分
+                        <span className="text-[#C9A961] ml-2">{qolStars}</span>
+                      </p>
                     </div>
-                    <p className="text-xs sm:text-sm text-[#5A4A3A] mt-2 sm:mt-3 opacity-80 leading-relaxed text-center sm:text-left sm:pl-2 sm:border-l-2 sm:border-[#2E4A62]/20">
-                      {occupationConfig.desc}
-                    </p>
                   </div>
                   
                   <div className="mt-3 sm:mt-4 text-center sm:text-left">
-                    查《醒贪简要录》，堪抵<span className="font-bold text-[#2E4A62] mx-1">{identity.dynasty}</span>朝
+                    查《醒贪简要录》，若论岁入，堪比<span className="font-bold text-[#2E4A62] mx-1">{identity.dynasty}</span>朝
                     <span className="font-bold text-[#C9372C] text-xl sm:text-2xl font-ancient mx-1 sm:mx-2">{identity.title}</span>。
                   </div>
                   
-                  {personalizedComment && (
-                    <div className="mt-3 sm:mt-4 bg-[#C9A961]/10 p-3 sm:p-4 rounded-lg relative">
-                      <span className="absolute -top-3 left-4 bg-[#FDF8E8] px-2 text-xs sm:text-sm text-[#8B7355] font-ancient">履历评述</span>
-                      <p className="text-[#5A4A3A] italic text-sm sm:text-base">
-                        "{personalizedComment}"
-                      </p>
-                    </div>
-                  )}
                   
                   <div className="mt-6 text-center">
                     <p className="text-[#2E4A62] font-medium text-xl font-ancient border-y border-[#2E4A62]/10 py-3">
@@ -322,11 +322,11 @@ export default function Result({ userInput, onReset }: ResultProps) {
                     </p>
                   </div>
                   
-                  {identity.historicalFigure && (
+                  {adjustedHistoricalFigure && (
                     <div className="mt-4 text-center">
                       <p className="text-[#5A4A3A] text-sm">
                         <span className="font-bold text-[#2E4A62]">历史对照：</span>
-                        与{identity.historicalFigure}相当
+                        与{adjustedHistoricalFigure}相当
                       </p>
                     </div>
                   )}
@@ -347,7 +347,7 @@ export default function Result({ userInput, onReset }: ResultProps) {
                 你可能的一天
               </h3>
               <p className="text-xs sm:text-sm text-[#8B7355] mb-4 sm:mb-6 pl-1 italic">
-                作为{identity.dynasty}朝的「{occupationConfig.ancientRole}」
+                作为{identity.dynasty}朝的「{identity.title}」
                 {dailyLifeParts.mood && <span className="ml-2">—— {dailyLifeParts.mood}</span>}
               </p>
               
@@ -388,8 +388,8 @@ export default function Result({ userInput, onReset }: ResultProps) {
             <div ref={accountBookRef} className="bg-white rounded overflow-hidden border border-[#2E4A62]/20">
               <div className="bg-[#2E4A62] text-white p-3 sm:p-4 text-center relative overflow-hidden">
                 <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
-                <h3 className="font-ancient text-lg sm:text-xl relative z-10">年度消费账本</h3>
-                <p className="text-xs sm:text-sm opacity-80 relative z-10 mt-1">{identity.dynasty}朝万历年间 · 若大胆消费 · 年收入{identity.salaryInTael}两白银可供</p>
+                <h3 className="font-ancient text-lg sm:text-xl relative z-10">购买力清单</h3>
+                <p className="text-xs sm:text-sm opacity-80 relative z-10 mt-1">{identity.dynasty}朝万历年间 · 若不计日常开支，肆意消费 · 年俸{identity.salaryInTael}两可购</p>
               </div>
               
               <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
@@ -407,6 +407,7 @@ export default function Result({ userInput, onReset }: ResultProps) {
                           src={item.image} 
                           alt={item.name}
                           className="w-full h-full object-contain"
+                          crossOrigin="anonymous"
                         />
                       </div>
                       
@@ -457,29 +458,20 @@ export default function Result({ userInput, onReset }: ResultProps) {
                   )}
                 </div>
 
-                <div className="pt-3 sm:pt-4 border-t-2 border-dashed border-[#C9A961]/30 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between text-xs sm:text-sm">
-                    <span className="text-[#8B7355]">年度消费合计</span>
-                    <span className="text-[#5A4A3A] font-medium">
-                      {purchasingPower.totalCost.toFixed(1)} 两
-                    </span>
+                <div className="pt-3 sm:pt-4 border-t-2 border-dashed border-[#C9A961]/30 space-y-3 sm:space-y-4">
+                  <p className="text-center text-xs sm:text-sm text-[#8B7355]">
+                    以上物品合计需银 <span className="font-bold text-[#5A4A3A]">{purchasingPower.totalCost.toFixed(1)}</span> 两
+                  </p>
+                  <div className="bg-[#C9372C]/5 p-3 sm:p-4 rounded">
+                    <p className="text-center text-xs sm:text-sm text-[#5A4A3A] leading-relaxed">
+                      年俸 <span className="font-bold text-[#C9372C] text-base sm:text-lg font-ancient">{identity.salaryInTael}</span> 两，
+                      若购置以上物品，
+                      {identity.salaryInTael > purchasingPower.totalCost 
+                        ? <>尚余 <span className="font-bold text-[#2E4A62]">{(identity.salaryInTael - purchasingPower.totalCost).toFixed(1)}</span> 两可作他用</>
+                        : '略有不足'
+                      }
+                    </p>
                   </div>
-                  <div className="flex items-center justify-between bg-[#C9372C]/5 p-2 sm:p-3 rounded">
-                    <span className="text-[#2E4A62] font-bold text-sm sm:text-base">年收入总计</span>
-                    <span className="text-xl sm:text-2xl font-bold text-[#C9372C] flex items-center gap-1 sm:gap-2 font-ancient">
-                      <img src="/silver-ingot.webp" alt="银两" className="w-5 h-5 sm:w-6 sm:h-6" />
-                      {identity.salaryInTael}
-                      <span className="text-xs sm:text-sm text-[#8B7355] font-sans">两白银</span>
-                    </span>
-                  </div>
-                  {identity.salaryInTael - purchasingPower.totalCost > 0 && (
-                    <div className="flex items-center justify-between text-xs sm:text-sm pt-1 sm:pt-2">
-                      <span className="text-[#8B7355]">可结余储蓄</span>
-                      <span className="text-[#2E4A62] font-bold">
-                        约 {(identity.salaryInTael - purchasingPower.totalCost).toFixed(1)} 两
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
               
@@ -509,7 +501,7 @@ export default function Result({ userInput, onReset }: ResultProps) {
                     {livingCosts.lifestyleLevel.name} · {livingCosts.lifestyleLevel.description}
                   </p>
                   <p className="text-xs sm:text-sm text-[#8B7355] mt-2 italic">
-                    "{costNarrative.overall}"
+                    {livingCosts.lifestyleLevel.description}
                   </p>
                 </div>
 
@@ -544,22 +536,31 @@ export default function Result({ userInput, onReset }: ResultProps) {
                     <span className="text-[#8B7355]">年度收入</span>
                     <span className="text-[#5A4A3A] font-medium">{livingCosts.income} 两</span>
                   </div>
-                  <div className={`flex items-center justify-between p-2 sm:p-3 rounded ${
+                  <div className={`p-2 sm:p-3 rounded ${
                     livingCosts.surplus >= 0 ? 'bg-[#2E4A62]/5' : 'bg-[#C9372C]/5'
                   }`}>
-                    <span className={`font-bold ${livingCosts.surplus >= 0 ? 'text-[#2E4A62]' : 'text-[#C9372C]'}`}>
-                      {livingCosts.surplus >= 0 ? '年度结余' : '年度亏空'}
-                    </span>
-                    <span className={`text-lg sm:text-xl font-bold font-ancient flex items-center gap-1 ${
-                      livingCosts.surplus >= 0 ? 'text-[#2E4A62]' : 'text-[#C9372C]'
-                    }`}>
-                      <img src="/silver-ingot.webp" alt="银两" className="w-5 h-5 sm:w-6 sm:h-6" />
-                      {livingCosts.surplus >= 0 ? '+' : ''}{livingCosts.surplus.toFixed(1)}
-                      <span className="text-xs sm:text-sm text-[#8B7355] font-sans">两</span>
-                      <span className="text-[10px] sm:text-xs text-[#8B7355] font-sans ml-1">
-                        ({livingCosts.surplusRatio.toFixed(0)}%)
+                    <div className="flex items-center justify-between">
+                      <span className={`font-bold ${livingCosts.surplus >= 0 ? 'text-[#2E4A62]' : 'text-[#C9372C]'}`}>
+                        {livingCosts.surplus >= 0 ? '年度结余' : '年度亏空'}
                       </span>
-                    </span>
+                      <span className={`text-lg sm:text-xl font-bold font-ancient flex items-center gap-1 ${
+                        livingCosts.surplus >= 0 ? 'text-[#2E4A62]' : 'text-[#C9372C]'
+                      }`}>
+                        <img src="/silver-ingot.webp" alt="银两" className="w-5 h-5 sm:w-6 sm:h-6" crossOrigin="anonymous" />
+                        {livingCosts.surplus >= 0 ? '+' : ''}{livingCosts.surplus.toFixed(1)}
+                        <span className="text-xs sm:text-sm text-[#8B7355] font-sans">两</span>
+                        <span className="text-[10px] sm:text-xs text-[#8B7355] font-sans ml-1">
+                          ({livingCosts.surplusRatio.toFixed(0)}%)
+                        </span>
+                      </span>
+                    </div>
+                    {livingCosts.surplus < 0 && (
+                      <div className="mt-2 pt-2 border-t border-[#C9372C]/20">
+                        <p className="text-xs sm:text-sm text-[#C9372C] italic text-center font-ancient">
+                          「{encouragementMessage}」
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -681,7 +682,7 @@ export default function Result({ userInput, onReset }: ResultProps) {
             className="flex items-center gap-2 px-6 py-3 bg-[#2E4A62] text-[#F5E6C8] rounded-full hover:bg-[#1E3A52] transition-colors shadow-md font-ancient"
           >
             <Share2 className="w-5 h-5" />
-            <span>昭告天下</span>
+            <span>{isWechat() ? '分享' : '昭告天下'}</span>
           </button>
 
           <button
@@ -692,6 +693,18 @@ export default function Result({ userInput, onReset }: ResultProps) {
             <span className="text-sm">{copied ? '已复制' : '复制链接'}</span>
           </button>
         </div>
+        
+        {/* 移动端和微信环境提示 */}
+        {(isMobileDevice() || isWechat()) && (
+          <div className="mt-4 text-center text-[#8B7355] text-xs bg-[#FDF8E8] p-3 rounded-lg border border-[#C9A961]/20 space-y-2">
+            {isMobileDevice() && !isWechat() && (
+              <p>📱 点击"保存通关文牒"后，图片将在新窗口打开，请长按保存</p>
+            )}
+            {isWechat() && (
+              <p>💬 在微信中分享：点击右上角"..."菜单，选择"分享给朋友"</p>
+            )}
+          </div>
+        )}
 
         <div className="mt-8 text-center text-[#8B7355] text-xs space-y-2 opacity-70">
           <p>换算说明：{userInput.exchangeRate}元人民币 ≈ 1两白银（明朝万历年间购买力平价）</p>

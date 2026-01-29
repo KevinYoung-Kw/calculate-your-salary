@@ -1,6 +1,15 @@
 import type { LevelMapping, UserInput } from '@/types';
-import { OCCUPATION_TYPE_OPTIONS } from '@/types';
 import { generateScene } from './sceneGenerator';
+import { 
+  calculateQualityOfLife,
+  normalizeQoL,
+  adjustLevelByQoL,
+  getQoLComment,
+  getQoLStars,
+  getSpecialComboDesc,
+  OVERTIME_DESC,
+  YEARS_DESC,
+} from './roleMapping';
 
 // 明朝万历年间物品价格（单位：两白银/单位）
 export const ITEM_PRICES: Record<string, {
@@ -189,297 +198,782 @@ export const ITEM_PRICES: Record<string, {
   },
 };
 
-// 30级职业进阶映射表 - 使用文学人物
+// 75级职业进阶映射表 - 严格遵循明朝官吏体系
 export const LEVEL_MAPPING: LevelMapping[] = [
+  // ====== 平民阶段 (L0-L14) ======
   {
     minSalary: 0,
-    maxSalary: 18000,
+    maxSalary: 12000,
     level: 0,
     title: "流民",
     dynasty: "明",
     verdict: "衣食无着，苟活于市井，实乃乱世之浮萍。居无定所，食不果腹，朝不保夕，诚为天下至苦之人。",
-    historicalFigure: "《水浒传》中的流民（如林冲发配前的处境）",
+    historicalFigure: "秦末陈胜",
     dailyLife: "清晨在街头寻找零工机会，中午可能只能喝上一碗稀粥，晚上栖身于破庙或桥洞之下。"
   },
   {
-    minSalary: 18000,
+    minSalary: 12000,
     maxSalary: 24000,
     level: 1,
-    title: "佃农",
+    title: "雇工",
     dynasty: "明",
-    verdict: "面朝黄土背朝天，汗滴禾下土，岁入仅供糊口。租种他人之地，五成交租，终年劳碌，余粮无几。",
-    historicalFigure: "《红楼梦》中的佃户（如乌进孝管理的庄户）",
-    dailyLife: "天未亮便下田耕作，日落方归。春耕夏耘秋收冬藏，一年四季不得闲，年底结算后所剩无几。"
+    verdict: "为人作工，勉强糊口，虽有微薄之资，终日劳碌不得闲。朝出暮归，仅够养家糊口。",
+    historicalFigure: "汉初韩信（年少贫困，常寄食于人）",
+    dailyLife: "天未亮便出门，在工坊或田间劳作，日落后拖着疲惫的身躯回家，所得工钱仅够温饱。"
   },
   {
     minSalary: 24000,
     maxSalary: 36000,
     level: 2,
-    title: "贫农",
+    title: "学徒",
     dynasty: "明",
-    verdict: "茅屋三间，薄田一亩，虽无冻馁之忧，亦无发达之望。日出而作，日落而息，世代守此薄业。",
-    historicalFigure: "《水浒传》中的阮氏三雄（贫苦渔民）",
-    dailyLife: "清晨喂鸡养猪，上午下地干活，中午在家简单用餐，下午继续劳作，傍晚挑水砍柴准备晚饭。"
+    verdict: "初入匠门，学艺三年，虽无工钱，却有一技之长可期。师傅严苛，日夜操练，盼早日出师。",
+    historicalFigure: "宋代毕昇（活字印刷发明者，学徒出身）",
+    dailyLife: "清晨起床打扫作坊，白天跟随师傅学艺，晚上练习手艺，偶尔得师傅赏赐些许铜钱。"
   },
   {
     minSalary: 36000,
     maxSalary: 48000,
     level: 3,
-    title: "小贩",
+    title: "小工",
     dynasty: "明",
-    verdict: "走街串巷，蝇头小利，起早贪黑，仅够一家温饱。担货而行，风雨无阻，市井之微末者也。",
-    historicalFigure: "《水浒传》中的武大郎（卖炊饼的小贩）",
-    dailyLife: "凌晨去集市进货，天亮开始沿街叫卖，中午在街边简单果腹，傍晚收摊回家清点一日所得。"
+    verdict: "力气活计，日晒雨淋，虽辛苦却有固定进项。挑水搬货，修桥铺路，皆是本分营生。",
+    historicalFigure: "唐代杜甫（晚年贫困潦倒，'茅屋为秋风所破'）",
+    dailyLife: "凌晨在码头等活，白天搬运货物，傍晚收工，所得工钱当日结清，勉强度日。"
   },
   {
     minSalary: 48000,
     maxSalary: 60000,
     level: 4,
-    title: "自耕农",
+    title: "杂役",
     dynasty: "明",
-    verdict: "自有薄田，自给自足，虽不富裕，倒也逍遥。不欠租粮，不受人管，乡间之小自在也。",
-    historicalFigure: "《水浒传》中的刘唐（赤发鬼，落魄时靠种田为生）",
-    dailyLife: "农忙时下地劳作，农闲时修缮房屋或制作手工艺品。逢年过节可杀只鸡改善伙食。"
+    verdict: "打杂跑腿，听人差遣，虽卑微却有立足之地。洒扫庭除，传递文书，一应杂务皆归吾等。",
+    historicalFigure: "东汉班超（初为官府抄书吏，后投笔从戎）",
+    dailyLife: "在府衙或大户人家当差，打扫卫生、传递消息、跑腿办事，月底领取工钱。"
   },
   {
     minSalary: 60000,
-    maxSalary: 84000,
+    maxSalary: 72000,
     level: 5,
-    title: "富农",
+    title: "伙计",
     dynasty: "明",
-    verdict: "田产数亩，家有余粮，堪称乡里小康。仓廪充实，鸡鸭成群，虽非显贵，亦有体面。",
-    historicalFigure: "《水浒传》中的史进（庄主，有田地产业）",
-    dailyLife: "雇佣短工帮忙耕作，自己监督指导。家中常备肉食，可供子弟读书识字，偶尔进城赶集。"
+    verdict: "店铺伙计，迎来送往，虽辛劳却有体面。包吃包住，月有工钱，乃市井中较为安稳之职。",
+    historicalFigure: "明初沈万三（早年为伙计，后成首富）",
+    dailyLife: "清晨开门打扫，白天招呼客人，晚上盘点货物，东家供应三餐，月底发放工钱。"
   },
   {
-    minSalary: 84000,
-    maxSalary: 108000,
+    minSalary: 72000,
+    maxSalary: 84000,
     level: 6,
     title: "店铺伙计",
     dynasty: "明",
-    verdict: "身怀一技，服务于商贾，虽劳碌却有安稳之所。柜台内外，迎来送往，市井之中坚力量。",
-    historicalFigure: "《红楼梦》中的铺面伙计",
-    dailyLife: "清晨开门打扫店面，整日站立招呼顾客，晚上盘点货物、记账，月底领取工钱和食宿。"
+    verdict: "颇有资历之伙计，深得掌柜信任，已能独当一面。算账记账，看管店铺，月钱渐丰。",
+    historicalFigure: "清代乔致庸（早年在家族商号学徒）",
+    dailyLife: "协助掌柜管理店铺，招呼客人，记账算账，偶尔可得东家赏赐，生活渐趋安稳。"
+  },
+  {
+    minSalary: 84000,
+    maxSalary: 96000,
+    level: 7,
+    title: "小贩",
+    dynasty: "明",
+    verdict: "走街串巷，自谋生路，虽无人管束，却也风餐露宿。担货叫卖，赚些蝇头小利，聊以度日。",
+    historicalFigure: "战国苏秦（游说前穷困潦倒，头悬梁锥刺股）",
+    dailyLife: "凌晨去集市进货，天亮开始沿街叫卖，中午在街边简单果腹，傍晚收摊回家清点一日所得。"
+  },
+  {
+    minSalary: 96000,
+    maxSalary: 108000,
+    level: 8,
+    title: "力役脚夫",
+    dynasty: "明",
+    verdict: "筋骨强健，以力气谋生，虽劳苦却收入尚可。挑担搬货，日行百里，汗水换来温饱。",
+    historicalFigure: "汉代朱买臣（挑柴度日，后拜会稽太守）",
+    dailyLife: "清晨在码头或驿站等活，白天挑货赶路，晚上在客栈歇脚，按里程计钱。"
   },
   {
     minSalary: 108000,
+    maxSalary: 120000,
+    level: 9,
+    title: "工匠",
+    dynasty: "明",
+    verdict: "手艺精湛，凭技吃饭，乃百工之列。木工、铁匠、泥瓦匠，各有所长，受人敬重。",
+    historicalFigure: "春秋鲁班（木匠祖师，发明多种工具）",
+    dailyLife: "在作坊中专心制作，按件计酬。活计精细则价高，口碑相传，订单不断。"
+  },
+  {
+    minSalary: 120000,
     maxSalary: 132000,
-    level: 7,
+    level: 10,
     title: "资深工匠",
     dynasty: "明",
-    verdict: "手艺精湛，受人敬重，一门技艺足以安身立命。木工、铁匠、泥瓦，各有所长，凭技吃饭。",
-    historicalFigure: "《水浒传》中的金大坚（刻印高手）",
-    dailyLife: "在作坊中专心制作，徒弟在旁打下手。完工后与客户交接，口碑相传，订单不断。"
+    verdict: "技艺纯熟，名声在外，已是本地一方之匠首。带徒传艺，订单盈门，生活小康。",
+    historicalFigure: "宋代黄道婆（革新纺织技术，'衣被天下'）",
+    dailyLife: "在自己的作坊中指导徒弟，接些高价活计，闲时与同行切磋技艺，颇有体面。"
   },
   {
     minSalary: 132000,
-    maxSalary: 156000,
-    level: 8,
-    title: "账房先生",
+    maxSalary: 144000,
+    level: 11,
+    title: "小商人",
     dynasty: "明",
-    verdict: "算盘珠响，账目清明，商号之中枢也。掌管钱粮出入，东家倚重，伙计敬畏，实为要职。",
-    historicalFigure: "《红楼梦》中的账房先生",
-    dailyLife: "每日核对进出账目，月底汇总报表。工作相对清闲但责任重大，常被东家请去商议经营事宜。"
+    verdict: "有些本钱，做些小买卖，货通南北，利薄多销。虽非大富，亦有恒产，足以安身立命。",
+    historicalFigure: "汉代卓王孙（蜀中富商，卓文君之父）",
+    dailyLife: "早起查看货源，白天经营店铺，晚上盘算账目，与同行交流行情，谋划如何扩大生意。"
+  },
+  {
+    minSalary: 144000,
+    maxSalary: 156000,
+    level: 12,
+    title: "小掌柜",
+    dynasty: "明",
+    verdict: "自有铺面，雇佣伙计，已是小有产业。经营有道，客源稳定，乡里颇有名气。",
+    historicalFigure: "清代胡雪岩（早年为钱庄学徒掌柜）",
+    dailyLife: "不必亲自站柜台，指挥伙计经营，查看账目，与客户应酬，偶尔进货采买。"
   },
   {
     minSalary: 156000,
-    maxSalary: 180000,
-    level: 9,
-    title: "小商人",
-    dynasty: "明",
-    verdict: "自有铺面，买卖兴隆，市井之中小有名气。货通南北，利达三江，虽非巨贾，亦有产业。",
-    historicalFigure: "《水浒传》中的张青（十字坡酒店老板）",
-    dailyLife: "早起查看货源，白天经营店铺，晚上与同行聚会交流行情，盘算如何扩大经营。"
-  },
-  {
-    minSalary: 180000,
-    maxSalary: 240000,
-    level: 10,
+    maxSalary: 168000,
+    level: 13,
     title: "富户",
     dynasty: "明",
-    verdict: "家资殷实，田产店铺皆有，乡里称羡。高门大院，仆役数名，一方之殷实人家。",
-    historicalFigure: "《水浒传》中的卢俊义（大名府首富）",
-    dailyLife: "不必亲自劳作，管理家中产业和仆人。常与地方官员往来，参与乡里的公益事业和纠纷调解。"
+    verdict: "家资殷实，田产店铺皆有，一方之殷实人家。不愁吃穿，子弟可供读书，乡里称羡。",
+    historicalFigure: "东晋陶渊明（辞官归隐，有田产数十亩）",
+    dailyLife: "不必亲自劳作，管理家中产业和仆人，与乡绅往来，参与地方事务，生活富足。"
   },
   {
-    minSalary: 240000,
-    maxSalary: 300000,
-    level: 11,
-    title: "典史",
+    minSalary: 168000,
+    maxSalary: 180000,
+    level: 14,
+    title: "小地主",
     dynasty: "明",
-    verdict: "初入流内，虽为末吏，已脱平民之列。典掌文书，收发案牍，衙门之基石也。",
-    historicalFigure: "《水浒传》中的何涛（济州府缉捕使臣）",
-    dailyLife: "在衙门中处理日常文书，记录案件，管理档案。虽无品级，但已穿上官服，受人敬畏。"
+    verdict: "薄有田产，收租为生，虽无官职却也体面。田连阡陌数十亩，佃户数家，岁入稳定。",
+    historicalFigure: "明代归有光（乡居教书，著有《项脊轩志》）",
+    dailyLife: "农忙时巡视田地，收租时查验谷物，闲时与乡绅聚会，商议乡里大事。"
+  },
+  // ====== 吏员阶段 (L15-L23) - 无品级 ======
+  {
+    minSalary: 180000,
+    maxSalary: 192000,
+    level: 15,
+    title: "衙役",
+    dynasty: "明",
+    verdict: "初入衙门，虽无品级，却也是公门中人。站堂喝道，传递文书，月有工钱，生活安稳。年俸约50两，实际收入约180两。",
+    historicalFigure: "明代沈炼（锦衣卫校尉，后为御史）",
+    dailyLife: "清晨到衙门当值，站堂时喝道威风，平日传递公文，跑腿办事，月底领取工钱。"
   },
   {
-    minSalary: 300000,
-    maxSalary: 360000,
-    level: 12,
+    minSalary: 192000,
+    maxSalary: 204000,
+    level: 16,
+    title: "捕快",
+    dynasty: "明",
+    verdict: "捕盗缉凶，维护治安，虽是吏员却颇有威风。手持铁尺，腰悬铜牌，乡里皆知。年俸约60两，实际收入约190两。",
+    historicalFigure: "宋代宋慈（法医鼻祖，著《洗冤集录》）",
+    dailyLife: "巡查街市，缉拿盗贼，审讯犯人。夜间需值夜巡逻，遇有要案需星夜赶路。"
+  },
+  {
+    minSalary: 204000,
+    maxSalary: 216000,
+    level: 17,
     title: "书吏",
     dynasty: "明",
-    verdict: "刀笔之吏，文案娴熟，衙门之根基也。案牍劳形，笔墨为生，虽无品级，实掌权柄。",
-    historicalFigure: "《红楼梦》中的门子（葫芦僧）",
+    verdict: "刀笔之吏，文案娴熟，衙门之根基也。案牍劳形，笔墨为生，虽无品级，实掌权柄。年俸约70两，实际收入约210两。",
+    historicalFigure: "唐代刘禹锡（初任书吏，后为诗豪）",
     dailyLife: "起草公文、整理案卷、协助审案。熟悉律法条文，常为百姓代写状纸，收取润笔之资。"
   },
   {
-    minSalary: 360000,
-    maxSalary: 420000,
-    level: 13,
+    minSalary: 216000,
+    maxSalary: 228000,
+    level: 18,
+    title: "门子",
+    dynasty: "明",
+    verdict: "守卫衙门，迎来送往，乃衙门之颜面。虽是吏员，却见多识广，人情练达。年俸约80两，实际收入约220两。",
+    historicalFigure: "宋代司马光（少年曾任门子，后为宰相）",
+    dailyLife: "站在衙门口迎接官员，通报来访者，传递消息，收取门包，颇有油水。"
+  },
+  {
+    minSalary: 228000,
+    maxSalary: 240000,
+    level: 19,
+    title: "账房",
+    dynasty: "明",
+    verdict: "掌管钱粮，账目清晰，乃衙门之要职。虽无品级，然东家倚重，手握财权。年俸约90两，实际收入约230两。",
+    historicalFigure: "汉代司马迁（初任太史令，著《史记》）",
+    dailyLife: "每日核对进出账目，月底汇总报表，管理库银，责任重大但颇有实权。"
+  },
+  {
+    minSalary: 240000,
+    maxSalary: 270000,
+    level: 20,
     title: "师爷",
     dynasty: "明",
-    verdict: "幕僚之职，运筹帷幄，知县之左膀右臂。刑名钱谷，无所不精，幕后之智囊也。",
-    historicalFigure: "《红楼梦》中的清客相公",
+    verdict: "幕僚之职，运筹帷幄，知县之左膀右臂。刑名钱谷，无所不精，幕后之智囊也。年俸约100两，实际收入约250两。",
+    historicalFigure: "清代纪晓岚（曾任幕僚，后编《四库全书》）",
     dailyLife: "居于知县幕后，为其出谋划策。审案时在一旁记录，闲暇时研读律法，是知县最信任的人。"
   },
   {
-    minSalary: 420000,
-    maxSalary: 480000,
-    level: 14,
+    minSalary: 270000,
+    maxSalary: 300000,
+    level: 21,
     title: "主簿",
     dynasty: "明",
-    verdict: "一县之管勾，钱粮之总揽，实权在握。佐理县政，分掌簿籍，知县之得力助手。",
-    historicalFigure: "《水浒传》中的押司（宋江曾任此职）",
+    verdict: "一县之管勾，钱粮之总揽，实权在握。佐理县政，分掌簿籍，知县之得力助手。年俸约120两，实际收入约280两。",
+    historicalFigure: "宋代宋江（郓城县押司）",
     dailyLife: "管理一县的户籍、赋税、徭役等事务。每日处理大量文书，是县政运转的关键人物。"
   },
   {
-    minSalary: 480000,
-    maxSalary: 600000,
-    level: 15,
-    title: "县丞",
+    minSalary: 300000,
+    maxSalary: 330000,
+    level: 22,
+    title: "押司",
     dynasty: "明",
-    verdict: "佐贰之职，辅助知县，一县之第二把交椅。正八品阶，已入流内，仕途之起步也。",
-    historicalFigure: "《红楼梦》中的贾雨村（初入仕途时）",
+    verdict: "掌管文书，分理政务，县衙之要员。虽是吏员，然权柄日重，知县倚为臂膀。年俸约140两，实际收入约310两。",
+    historicalFigure: "汉代萧何（初为沛县主吏掾，后为丞相）",
+    dailyLife: "负责起草文书，整理案卷，传达政令。常需陪同知县审案，是县衙的实际办事人员。"
+  },
+  {
+    minSalary: 330000,
+    maxSalary: 360000,
+    level: 23,
+    title: "大掌柜",
+    dynasty: "明",
+    verdict: "经营有道，生意兴隆，已是一方之富商。雇佣伙计数十，店铺连锁，财源广进。与吏员同等收入，却无公门束缚。",
+    historicalFigure: "清代张謇（状元实业家，创办大生纱厂）",
+    dailyLife: "不必亲自站柜台，管理多家店铺，与官府往来，参与商会事务，生活富足。"
+  },
+  // ====== 有品级官员阶段 (L24起) ======
+  // 九品官 (L24-L28)
+  {
+    minSalary: 360000,
+    maxSalary: 400000,
+    level: 24,
+    title: "从九品·典史",
+    dynasty: "明",
+    verdict: "初入流内，虽为末品，已脱吏员之列。典掌狱讼，协理刑名，县衙之佐贰也。正俸60两，加火耗门包等灰色收入，实得约360两。",
+    historicalFigure: "明代海瑞（初任南平县教谕典史）",
+    dailyLife: "在县衙负责监狱管理和刑名事务，协助知县审案，虽品级最低，但已是朝廷命官，穿官服戴官帽。"
+  },
+  {
+    minSalary: 400000,
+    maxSalary: 450000,
+    level: 25,
+    title: "正九品·巡检",
+    dynasty: "明",
+    verdict: "巡查地方，缉捕盗贼，维护一方治安。正俸60两，实际年俸约420两，已是父母官之列。",
+    historicalFigure: "明代戚继光（早年任登州卫指挥佥事）",
+    dailyLife: "带领弓兵巡查辖区，缉拿盗贼，维护治安。遇有要案需向知县禀报，是地方治安的第一道防线。"
+  },
+  {
+    minSalary: 450000,
+    maxSalary: 500000,
+    level: 26,
+    title: "从九品·教谕",
+    dynasty: "明",
+    verdict: "掌教一县，传道授业，乃文教之官。虽品级不高，然桃李满天下，深受敬重。正俸60两，实际约470两。",
+    historicalFigure: "宋代程颐（二程之一，曾任县学教授）",
+    dailyLife: "在县学教授生员，主持童生考试，管理学田学产。是一县文教之首，颇受儒生敬重。"
+  },
+  {
+    minSalary: 500000,
+    maxSalary: 550000,
+    level: 27,
+    title: "正九品·训导",
+    dynasty: "明",
+    verdict: "协理学政，教化士子，文教副职。协助教谕管理县学，正俸60两，实际约530两。",
+    historicalFigure: "宋代朱熹（早年任同安县主簿）",
+    dailyLife: "辅助教谕管理县学，教授生员，批改文章，是县学的重要教官。"
+  },
+  {
+    minSalary: 550000,
+    maxSalary: 600000,
+    level: 28,
+    title: "富商",
+    dynasty: "明",
+    verdict: "生意兴隆，财源广进，虽无官职却富甲一方。店铺数家，伙计成群，与九品官同等收入却无公务缠身。",
+    historicalFigure: "春秋范蠡（弃政从商，成为陶朱公）",
+    dailyLife: "管理多家店铺，与官府往来密切，参与商会事务，出资赈灾获得善名，生活优渥。"
+  },
+  // 八品官 (L29-L34)
+  {
+    minSalary: 600000,
+    maxSalary: 700000,
+    level: 29,
+    title: "从八品·县丞",
+    dynasty: "明",
+    verdict: "佐贰之职，辅助知县，一县之第二把交椅。正俸70两，实际约600两，仕途之起步也。",
+    historicalFigure: "唐代白居易（初任盩厔县尉）",
     dailyLife: "协助知县处理政务，分管某些具体事务。可代行知县职权，是晋升知县的重要台阶。"
   },
   {
-    minSalary: 600000,
-    maxSalary: 720000,
-    level: 16,
-    title: "正七品知县",
+    minSalary: 700000,
+    maxSalary: 800000,
+    level: 30,
+    title: "正八品·州同",
     dynasty: "明",
-    verdict: "牧民之官，一县之主，百姓之父母也。正俸四十五两，养廉银千两，权柄日重，威震一方。",
-    historicalFigure: "《红楼梦》中的应天府贾雨村",
-    dailyLife: "晨起升堂问案，处理民事纠纷。下午批阅公文，接见乡绅。晚上研读律法，准备次日公务。"
+    verdict: "协理州政，辅佐知州，已入中上品阶。正俸80两，实际约720两，职权渐重。",
+    historicalFigure: "明朝州同",
+    dailyLife: "协助知州管理州务，处理民事纠纷，巡查所辖地方，是州府的重要佐官。"
   },
   {
-    minSalary: 720000,
-    maxSalary: 840000,
-    level: 17,
-    title: "正六品通判",
+    minSalary: 800000,
+    maxSalary: 900000,
+    level: 31,
+    title: "从八品·学正",
     dynasty: "明",
-    verdict: "佐理州政，分掌粮运、督捕，权柄日重。同知之事，知府之副，州郡之要员也。",
-    historicalFigure: "《红楼梦》中的贾政（工部员外郎，约此级别）",
-    dailyLife: "分管某一专项事务，如粮运、河工、治安等。常需下乡巡查，督促地方政务。"
+    verdict: "主理学政，教化士子，文教之官。正俸75两，实际约850两，桃李满门，颇受敬重。",
+    historicalFigure: "明代王阳明（早年任县学教谕）",
+    dailyLife: "主持州学，教授生员，主持乡试初选，是地方文教的重要官员。"
   },
   {
-    minSalary: 840000,
-    maxSalary: 960000,
-    level: 18,
-    title: "正五品知府",
+    minSalary: 900000,
+    maxSalary: 1000000,
+    level: 32,
+    title: "正八品·教授",
     dynasty: "明",
-    verdict: "一府之尊，统辖数县，威震一方。正俸八十两，养廉银两千两，封疆大吏之起步也。",
-    historicalFigure: "《红楼梦》中的金陵知府（贾雨村后期）",
-    dailyLife: "统管一府政务，考核属下各县。定期巡查辖区，处理重大案件，向巡抚汇报工作。"
+    verdict: "教授生员，传道授业，文教正职。正俸80两，实际约950两，是府学之长。",
+    historicalFigure: "宋代范仲淹（初任教授，后为宰相）",
+    dailyLife: "主持府学，教授生员，参与科举考试，是一府文教的掌门人。"
   },
   {
-    minSalary: 960000,
-    maxSalary: 1080000,
-    level: 19,
-    title: "正四品道员",
+    minSalary: 1000000,
+    maxSalary: 1100000,
+    level: 33,
+    title: "从八品·训导",
     dynasty: "明",
-    verdict: "分守、分巡各道，监察府县，位高权重。承上启下，节制一方，已入高官之列。",
-    historicalFigure: "《红楼梦》中的巡盐御史（林如海曾任此职）",
-    dailyLife: "巡视所辖各府县，监察官员政绩，处理跨府事务。是中央与地方之间的重要纽带。"
+    verdict: "协理学政，教化士子，文教副职。正俸75两，实际约1050两，辅助教授管理府学。",
+    historicalFigure: "宋代欧阳修（初任馆阁校勘）",
+    dailyLife: "辅助教授管理府学，教授生员，批改文章，协助科举考务。"
   },
   {
-    minSalary: 1080000,
+    minSalary: 1100000,
     maxSalary: 1200000,
-    level: 20,
-    title: "从三品按察使",
+    level: 34,
+    title: "大商人",
     dynasty: "明",
-    verdict: "一省刑名之主，司法大权在握，铁面无私。掌纠劾官邪，伸理冤抑，司法之最高长官。",
-    historicalFigure: "《红楼梦》中的贾赦（一等将军，约此品级）",
-    dailyLife: "审理重大案件，纠劾贪官污吏。主持秋审，复核死刑案件。是维护地方司法公正的关键人物。"
+    verdict: "富甲一方，货通天下，虽无官职却财力雄厚。与八品官同等收入，店铺遍布，财源滚滚。",
+    historicalFigure: "明代沈万三（江南首富，助建南京城墙）",
+    dailyLife: "管理庞大商业帝国，与官府关系密切，参与朝廷采买，出资赈灾获得善名。"
   },
+  // 七品官 (L35-L40)
   {
     minSalary: 1200000,
     maxSalary: 1500000,
-    level: 21,
-    title: "正三品布政使",
+    level: 35,
+    title: "从七品·县令",
     dynasty: "明",
-    verdict: "一省行政之长，钱粮、民政总揽，封疆大吏。掌一省之政令，承流宣化，方伯之尊。",
-    historicalFigure: "《红楼梦》中的王子腾（京营节度使，后升九省统制）",
-    dailyLife: "总揽一省政务，管理赋税、户籍、科举等事务。定期向朝廷汇报，是地方行政的核心人物。"
+    verdict: "一县之长，父母官也，已是真正的牧民之官。正俸90两，加火耗等灰色收入，实际约1300两。",
+    historicalFigure: "唐代柳宗元（初任蓝田县尉）",
+    dailyLife: "晨起升堂问案，处理民事纠纷，下午批阅公文，接见乡绅，晚上研读律法。"
   },
   {
     minSalary: 1500000,
     maxSalary: 1800000,
-    level: 22,
-    title: "从二品巡抚",
+    level: 36,
+    title: "正七品·知县",
     dynasty: "明",
-    verdict: "节制一省军政，代天巡狩，威震华夏。巡行地方，抚安军民，一省之最高长官。",
-    historicalFigure: "《红楼梦》中的贾元春（贤德妃，其家族地位对应）",
-    dailyLife: "节制一省文武百官，处理军政大事。巡视各地，考察官员，向皇帝直接奏报。"
+    verdict: "牧民之官，一县之主，百姓之父母也。正俸45两，加养廉银等实际约1650两，权柄日重，威震一方。",
+    historicalFigure: "宋代包拯（初任天长县知县，'包青天'）",
+    dailyLife: "晨起升堂问案，处理民事纠纷。下午批阅公文，接见乡绅。晚上研读律法，准备次日公务。"
   },
   {
     minSalary: 1800000,
-    maxSalary: 2400000,
-    level: 23,
-    title: "正二品总督",
+    maxSalary: 2100000,
+    level: 37,
+    title: "从七品·评事",
     dynasty: "明",
-    verdict: "节制数省，手握重兵，真正的封疆大吏。总揽军政大权，节制文武百官，位极人臣。",
-    historicalFigure: "《三国演义》中的荆州牧刘表",
-    dailyLife: "统辖数省军政，处理重大军务和边患。可直接向皇帝上奏，是地方最高权力代表。"
+    verdict: "掌评理刑名，审理案件，乃司法之官。正俸90两，实际约1950两，执法如山，铁面无私。",
+    historicalFigure: "明朝大理寺评事",
+    dailyLife: "审理各类案件，评议刑名，复核判决，是朝廷司法体系的重要一环。"
+  },
+  {
+    minSalary: 2100000,
+    maxSalary: 2400000,
+    level: 38,
+    title: "正七品·推官",
+    dynasty: "明",
+    verdict: "推问刑狱，明察秋毫，司法之能臣。正俸90两，实际约2250两，执掌一方司法大权。",
+    historicalFigure: "明朝推官",
+    dailyLife: "审理重大案件，推问刑狱，复核判决，向上级汇报疑难案件。"
   },
   {
     minSalary: 2400000,
-    maxSalary: 3000000,
-    level: 24,
-    title: "从一品尚书",
+    maxSalary: 2700000,
+    level: 39,
+    title: "从七品·州判",
     dynasty: "明",
-    verdict: "六部之首，执掌国政，朝廷之栋梁。吏户礼兵刑工，各有所掌，国之重臣。",
-    historicalFigure: "《红楼梦》中的贾政（若升任尚书）",
+    verdict: "协理州政，分掌刑名，州府之佐官。正俸90两，实际约2550两，职权日重。",
+    historicalFigure: "明朝州判",
+    dailyLife: "协助知州管理州务，主要负责刑名案件，是州府的重要佐官。"
+  },
+  {
+    minSalary: 2700000,
+    maxSalary: 3000000,
+    level: 40,
+    title: "豪商巨贾",
+    dynasty: "明",
+    verdict: "富可敌国，货通天下，虽无官职却富甲天下。与七品官同等收入，生意遍及海内外，财力雄厚。",
+    historicalFigure: "清代胡雪岩（红顶商人，富可敌国）",
+    dailyLife: "管理庞大商业帝国，结交权贵，参与朝廷采买，出资公益获得名望，生活极尽奢华。"
+  },
+  // 六品官 (L41-L45)
+  {
+    minSalary: 3000000,
+    maxSalary: 3500000,
+    level: 41,
+    title: "从六品·主事",
+    dynasty: "明",
+    verdict: "六部主事，掌理部务，朝廷之中坚。正俸105两，实际约3200两，已入京官行列。",
+    historicalFigure: "清代曾国藩（初任翰林院检讨）",
+    dailyLife: "在六部衙门办公，处理部务文书，参与政策制定，是朝廷中枢的重要官员。"
+  },
+  {
+    minSalary: 3500000,
+    maxSalary: 4000000,
+    level: 42,
+    title: "正六品·通判",
+    dynasty: "明",
+    verdict: "佐理府政，分掌粮运、督捕，权柄日重。正俸120两，实际约3700两，府之要员也。",
+    historicalFigure: "明朝通判",
+    dailyLife: "分管专项事务，如粮运、河工、治安等，常需下乡巡查，督促地方政务。"
+  },
+  {
+    minSalary: 4000000,
+    maxSalary: 4500000,
+    level: 43,
+    title: "从六品·都事",
+    dynasty: "明",
+    verdict: "掌管文书，协理政务，朝廷之枢要。正俸110两，实际约4200两，参与机密要务。",
+    historicalFigure: "明朝都事",
+    dailyLife: "在都察院或六部掌管文书，协理政务，传达圣旨，是朝廷运转的重要环节。"
+  },
+  {
+    minSalary: 4500000,
+    maxSalary: 5000000,
+    level: 44,
+    title: "正六品·员外郎",
+    dynasty: "明",
+    verdict: "六部员外郎，分掌部务，朝廷之能臣。正俸120两，实际约4700两，参与国政要务。",
+    historicalFigure: "明代于谦（初任御史，后为兵部尚书）",
+    dailyLife: "在六部负责具体司务，起草文书，参与政策讨论，是部务的实际办理者。"
+  },
+  {
+    minSalary: 5000000,
+    maxSalary: 6000000,
+    level: 45,
+    title: "从六品·郎中",
+    dynasty: "明",
+    verdict: "六部郎中，司掌要务，朝廷之股肱。正俸115两，实际约5400两，权柄在握。",
+    historicalFigure: "明朝六部郎中",
+    dailyLife: "掌管六部某司事务，起草重要文书，参与廷议，是朝廷政务的核心官员。"
+  },
+  // 五品官 (L46-L50)
+  {
+    minSalary: 6000000,
+    maxSalary: 7000000,
+    level: 46,
+    title: "从五品·知州",
+    dynasty: "明",
+    verdict: "一州之长，统辖数县，地方大员。正俸140两，实际约6400两，已是封疆之列。",
+    historicalFigure: "明朝知州",
+    dailyLife: "统管一州政务，考核属下各县，处理重大案件，向道员汇报工作。"
+  },
+  {
+    minSalary: 7000000,
+    maxSalary: 8000000,
+    level: 47,
+    title: "正五品·知府",
+    dynasty: "明",
+    verdict: "一府之尊，统辖数县，威震一方。正俸155两，实际约7400两，封疆大吏之起步也。",
+    historicalFigure: "宋代苏轼（任杭州知府，'苏堤春晓'）",
+    dailyLife: "统管一府政务，考核属下各县。定期巡查辖区，处理重大案件，向巡抚汇报工作。"
+  },
+  {
+    minSalary: 8000000,
+    maxSalary: 9000000,
+    level: 48,
+    title: "从五品·同知",
+    dynasty: "明",
+    verdict: "协理府政，分掌要务，府之副职。正俸145两，实际约8400两，权柄日重。",
+    historicalFigure: "明朝同知",
+    dailyLife: "协助知府管理府务，分管专项事务，是知府的得力助手。"
+  },
+  {
+    minSalary: 9000000,
+    maxSalary: 10000000,
+    level: 49,
+    title: "正五品·参政",
+    dynasty: "明",
+    verdict: "参赞政务，协理省政，地方要员。正俸155两，实际约9400两，已入高位。",
+    historicalFigure: "明朝参政",
+    dailyLife: "协助布政使管理省政，参与重要决策，是省级政务的核心官员。"
+  },
+  {
+    minSalary: 10000000,
+    maxSalary: 12000000,
+    level: 50,
+    title: "从五品·佥事",
+    dynasty: "明",
+    verdict: "分巡分守，监察地方，职权在握。正俸145两，实际约10800两，是朝廷耳目。",
+    historicalFigure: "明朝佥事",
+    dailyLife: "巡视地方，监察官员，处理跨府事务，向上级汇报地方情况。"
+  },
+  // 四品官 (L51-L54)
+  {
+    minSalary: 12000000,
+    maxSalary: 15000000,
+    level: 51,
+    title: "从四品·道员",
+    dynasty: "明",
+    verdict: "分守、分巡各道，监察府县，位高权重。正俸170两，实际约13200两，承上启下，节制一方。",
+    historicalFigure: "明代王守仁（巡抚南赣，平定叛乱）",
+    dailyLife: "巡视所辖各府县，监察官员政绩，处理跨府事务，是中央与地方之间的重要纽带。"
+  },
+  {
+    minSalary: 15000000,
+    maxSalary: 18000000,
+    level: 52,
+    title: "正四品·知府",
+    dynasty: "明",
+    verdict: "重镇知府，统辖要地，封疆大吏。正俸180两，实际约16200两，威震一方。",
+    historicalFigure: "明朝要地知府（如苏州、杭州知府）",
+    dailyLife: "统管重要府郡，处理军政要务，向巡抚直接汇报，是地方的实际掌权者。"
+  },
+  {
+    minSalary: 18000000,
+    maxSalary: 22000000,
+    level: 53,
+    title: "从四品·参政",
+    dynasty: "明",
+    verdict: "参赞要务，协理省政，省之股肱。正俸175两，实际约19800两，位高权重。",
+    historicalFigure: "明朝参政",
+    dailyLife: "协助布政使管理省政，参与重大决策，处理省级要务，是省政的实际操作者。"
+  },
+  {
+    minSalary: 22000000,
+    maxSalary: 30000000,
+    level: 54,
+    title: "正四品·参议",
+    dynasty: "明",
+    verdict: "参议政务，献策献言，朝廷之谋臣。正俸180两，实际约25200两，深受倚重。",
+    historicalFigure: "明朝参议",
+    dailyLife: "参与省政讨论，提出政策建议，协助处理重大事务，是省级决策的重要参与者。"
+  },
+  // 三品官 (L55-L58)
+  {
+    minSalary: 30000000,
+    maxSalary: 37500000,
+    level: 55,
+    title: "从三品·按察使",
+    dynasty: "明",
+    verdict: "一省刑名之主，司法大权在握，铁面无私。正俸190两，实际约33000两，掌纠劾官邪，伸理冤抑，司法之最高长官。",
+    historicalFigure: "明代海瑞（任应天巡抚，刚正不阿）",
+    dailyLife: "审理重大案件，纠劾贪官污吏。主持秋审，复核死刑案件。是维护地方司法公正的关键人物。"
+  },
+  {
+    minSalary: 37500000,
+    maxSalary: 45000000,
+    level: 56,
+    title: "正三品·布政使",
+    dynasty: "明",
+    verdict: "一省行政之长，钱粮、民政总揽，封疆大吏。正俸200两，实际约40500两，掌一省之政令，承流宣化，方伯之尊。",
+    historicalFigure: "清代李鸿章（直隶总督，北洋大臣）",
+    dailyLife: "总揽一省政务，管理赋税、户籍、科举等事务。定期向朝廷汇报，是地方行政的核心人物。"
+  },
+  {
+    minSalary: 45000000,
+    maxSalary: 52500000,
+    level: 57,
+    title: "从三品·副使",
+    dynasty: "明",
+    verdict: "协理省政，辅佐藩臬，省之重臣。正俸195两，实际约48000两，参与要务决策。",
+    historicalFigure: "明朝副使",
+    dailyLife: "协助布政使或按察使管理省政，处理重大事务，是省级政务的重要官员。"
+  },
+  {
+    minSalary: 52500000,
+    maxSalary: 60000000,
+    level: 58,
+    title: "正三品·参政",
+    dynasty: "明",
+    verdict: "参赞省政，协理要务，省之柱石。正俸200两，实际约55500两，深受倚重。",
+    historicalFigure: "明朝参政",
+    dailyLife: "参与省级重大决策，协助布政使处理政务，是省政的核心参与者。"
+  },
+  // 二品官 (L59-L62)
+  {
+    minSalary: 60000000,
+    maxSalary: 75000000,
+    level: 59,
+    title: "从二品·巡抚",
+    dynasty: "明",
+    verdict: "节制一省军政，代天巡狩，威震华夏。正俸220两，实际约66000两，巡行地方，抚安军民，一省之最高长官。",
+    historicalFigure: "清代林则徐（湖广总督，'苟利国家生死以'）",
+    dailyLife: "节制一省文武百官，处理军政大事。巡视各地，考察官员，向皇帝直接奏报。"
+  },
+  {
+    minSalary: 75000000,
+    maxSalary: 90000000,
+    level: 60,
+    title: "正二品·总督",
+    dynasty: "明",
+    verdict: "节制数省，手握重兵，真正的封疆大吏。正俸240两，实际约81000两，总揽军政大权，节制文武百官，位极人臣。",
+    historicalFigure: "汉末刘表（荆州牧）",
+    dailyLife: "统辖数省军政，处理重大军务和边患。可直接向皇帝上奏，是地方最高权力代表。"
+  },
+  {
+    minSalary: 90000000,
+    maxSalary: 105000000,
+    level: 61,
+    title: "从二品·侍郎",
+    dynasty: "明",
+    verdict: "六部侍郎，协理部务，朝廷之重臣。正俸230两，实际约96000两，参与国政要务。",
+    historicalFigure: "明朝六部侍郎",
+    dailyLife: "协助尚书管理部务，参与廷议，向皇帝进言，是朝廷中枢的核心官员。"
+  },
+  {
+    minSalary: 105000000,
+    maxSalary: 120000000,
+    level: 62,
+    title: "正二品·巡抚（加衔）",
+    dynasty: "明",
+    verdict: "加衔巡抚，位高权重，封疆之重任。正俸240两，实际约111000两，节制军政，威震一方。",
+    historicalFigure: "明朝巡抚（加兵部侍郎衔或都察院右都御史衔）",
+    dailyLife: "以更高品级节制一省，处理军政要务，直接向皇帝奏报，权力更大。"
+  },
+  // 一品官 (L63-L66)
+  {
+    minSalary: 120000000,
+    maxSalary: 150000000,
+    level: 63,
+    title: "从一品·尚书",
+    dynasty: "明",
+    verdict: "六部之首，执掌国政，朝廷之栋梁。正俸260两，实际约132000两，吏户礼兵刑工，各有所掌，国之重臣。",
+    historicalFigure: "明代张居正（任首辅前曾任尚书）",
     dailyLife: "主持部务，参与廷议，向皇帝进言。每日处理大量奏章，是国家行政的中枢人物。"
   },
   {
-    minSalary: 3000000,
-    maxSalary: 3600000,
-    level: 25,
-    title: "正一品大学士",
+    minSalary: 150000000,
+    maxSalary: 180000000,
+    level: 64,
+    title: "正一品·大学士",
     dynasty: "明",
-    verdict: "殿阁大学士，辅弼之臣，一人之下万人之上。入阁办事，参预机务，宰相之尊。",
-    historicalFigure: "《三国演义》中的诸葛亮（丞相）",
+    verdict: "殿阁大学士，辅弼之臣，一人之下万人之上。正俸280两，实际约162000两，入阁办事，参预机务，宰相之尊。",
+    historicalFigure: "蜀汉诸葛亮（丞相，鞠躬尽瘁）",
     dailyLife: "入阁参预机务，票拟奏章，辅佐皇帝处理政务。是朝廷决策的核心人物，权倾朝野。"
   },
   {
-    minSalary: 3600000,
-    maxSalary: 4800000,
-    level: 26,
-    title: "亲王",
+    minSalary: 180000000,
+    maxSalary: 210000000,
+    level: 65,
+    title: "从一品·太子太保",
     dynasty: "明",
-    verdict: "天潢贵胄，皇室宗亲，尊贵无比。金枝玉叶，龙子龙孙，天下之至尊至贵。",
-    historicalFigure: "《红楼梦》中的北静王",
+    verdict: "东宫师保，教导储君，位尊权重。正俸270两，实际约192000两，辅佐太子，关乎国本。",
+    historicalFigure: "明朝太子太保",
+    dailyLife: "辅导太子读书，参与朝政，是储君的重要师傅，地位尊崇。"
+  },
+  {
+    minSalary: 210000000,
+    maxSalary: 240000000,
+    level: 66,
+    title: "正一品·少傅",
+    dynasty: "明",
+    verdict: "三公之列，位极人臣，荣宠无比。正俸280两，实际约222000两，辅佐朝政，德高望重。",
+    historicalFigure: "明朝少傅（往往是加衔）",
+    dailyLife: "参与朝廷重大决策，辅佐皇帝处理政务，是最高级别的朝廷重臣。"
+  },
+  // 超品/皇室 (L67-L70)
+  {
+    minSalary: 240000000,
+    maxSalary: 300000000,
+    level: 67,
+    title: "亲王（低俸）",
+    dynasty: "明",
+    verdict: "天潢贵胄，皇室宗亲，尊贵无比。年俸约10000两加封地收入，金枝玉叶，龙子龙孙，天下之至尊至贵。",
+    historicalFigure: "明代朱权（宁王，著有《太和正音谱》）",
     dailyLife: "居于王府，享受荣华富贵。参与重大典礼，但需谨守本分，不可干预朝政。"
   },
   {
-    minSalary: 4800000,
-    maxSalary: 6000000,
-    level: 27,
-    title: "摄政王",
+    minSalary: 300000000,
+    maxSalary: 370000000,
+    level: 68,
+    title: "郡王",
     dynasty: "明",
-    verdict: "代天摄政，总揽朝纲，权倾天下。皇帝年幼，亲王摄政，号令天下，莫敢不从。",
-    historicalFigure: "清朝多尔衮（睿亲王，摄政王）",
-    dailyLife: "代行皇帝职权，总揽朝政。每日批阅奏章，召见大臣，决策国家大事。"
+    verdict: "皇室宗亲，受封郡王，位尊权重。年俸约8000两加封地，爵位世袭，荣耀无比。",
+    historicalFigure: "明朝郡王",
+    dailyLife: "居于封地，管理藩地事务，享受朝廷供奉，参与皇室典礼。"
   },
   {
-    minSalary: 6000000,
+    minSalary: 370000000,
+    maxSalary: 450000000,
+    level: 69,
+    title: "亲王（高俸）",
+    dynasty: "明",
+    verdict: "嫡亲皇子，受封亲王，位极尊贵。年俸约15000两加丰厚封地，金枝玉叶，天潢贵胄。",
+    historicalFigure: "明朝亲王（嫡出）",
+    dailyLife: "居于王府，享受极高待遇，参与重大国事，但不得干预朝政，享受荣华富贵。"
+  },
+  {
+    minSalary: 450000000,
+    maxSalary: 500000000,
+    level: 70,
+    title: "议政王",
+    dynasty: "明",
+    verdict: "参与议政，辅佐朝廷，权柄在握。年俸约20000两加封地，可参预机务，位高权重。",
+    historicalFigure: "清朝议政王",
+    dailyLife: "参与朝廷重大决策，议政于朝堂，享受皇室最高待遇，权力仅次于摄政王。"
+  },
+  // 权臣/摄政 (L71-L74)
+  {
+    minSalary: 500000000,
+    maxSalary: 600000000,
+    level: 71,
+    title: "铁帽子王",
+    dynasty: "明",
+    verdict: "世袭罔替，爵位永固，皇室之柱石。不降等承袭，子孙永享荣华，权势熏天。",
+    historicalFigure: "清代恭亲王奕訢",
+    dailyLife: "享受最高待遇，爵位世代相传不降级，参与重大国事，是皇室最尊贵的成员。"
+  },
+  {
+    minSalary: 600000000,
+    maxSalary: 750000000,
+    level: 72,
+    title: "摄政王",
+    dynasty: "明",
+    verdict: "代天摄政，总揽朝纲，权倾天下。皇帝年幼或特授，亲王摄政，号令天下，莫敢不从。",
+    historicalFigure: "清朝多尔衮",
+    dailyLife: "代行皇帝职权，总揽朝政。每日批阅奏章，召见大臣，决策国家大事，实际掌权者。"
+  },
+  {
+    minSalary: 750000000,
+    maxSalary: 900000000,
+    level: 73,
+    title: "监国太子",
+    dynasty: "明",
+    verdict: "储君监国，代理朝政，国本所系。皇帝巡幸或委以重任，太子监国，学习治国。",
+    historicalFigure: "明朝监国太子",
+    dailyLife: "代理朝政，处理日常政务，学习如何治理国家，为继位做准备。"
+  },
+  {
+    minSalary: 900000000,
+    maxSalary: 1000000000,
+    level: 74,
+    title: "太上皇",
+    dynasty: "明",
+    verdict: "退位之尊，虽不理政，然地位崇高。禅位于子，颐养天年，受万民敬仰。",
+    historicalFigure: "明朝嘉靖帝父亲（追尊）",
+    dailyLife: "不再处理朝政，在宫中颐养天年，享受最高待遇，偶尔给新皇帝一些指导。"
+  },
+  // 皇帝 (L75)
+  {
+    minSalary: 100000000,
     maxSalary: 999999999,
-    level: 28,
+    level: 75,
     title: "皇帝",
     dynasty: "明",
-    verdict: "九五之尊，天下之主，富有四海。普天之下，莫非王土；率土之滨，莫非王臣。",
-    historicalFigure: "《红楼梦》中的皇帝（元春侍奉之主）",
-    dailyLife: "清晨上朝听政，批阅奏章，召见大臣。下午读书学习或处理紧急事务。晚上批阅奏章至深夜。"
+    verdict: "九五之尊，天下之主，富有四海。普天之下，莫非王土；率土之滨，莫非王臣。唯有年入亿两者，方堪此位。",
+    historicalFigure: "明朝万历皇帝",
+    dailyLife: "清晨上朝听政，批阅奏章，召见大臣。下午读书学习或处理紧急事务。晚上批阅奏章至深夜，日理万机。"
   }
 ];
 
@@ -835,25 +1329,16 @@ export function calculatePurchasingPower(salaryInTael: number): {
   return { items: filteredItems, totalCost, landArea, lifestyle };
 }
 
-// ========== 新版：基于职业大类的映射（从 types 导入） ==========
+// ========== 生活质量相关导出（从 roleMapping 重新导出） ==========
 
-// 获取职业大类配置
-export function getOccupationTypeConfig(occupationType: string) {
-  return OCCUPATION_TYPE_OPTIONS.find(opt => opt.value === occupationType) || OCCUPATION_TYPE_OPTIONS[0];
-}
-
-// 旧版接口保持兼容（已废弃，仅为兼容性保留）
-export interface OccupationConfig {
-  keywords: string[];
-  ancientRole: string;
-  ancientDesc: string;
-  dailyActivities: {
-    morning: string[];
-    afternoon: string[];
-    evening: string[];
-  };
-  verdictPrefix: string;
-}
+export { 
+  calculateQualityOfLife,
+  normalizeQoL,
+  adjustLevelByQoL,
+  getQoLComment,
+  getQoLStars,
+  getSpecialComboDesc,
+};
 
 // ========== 新版每日生活生成（使用场景生成器） ==========
 
@@ -869,8 +1354,16 @@ export function generateDailyLife(
   userInput: UserInput,
   level: number
 ): GeneratedDailyLife {
-  // 调用新的场景生成器
-  const scene = generateScene(userInput, level);
+  // 计算生活质量并归一化
+  const qol = calculateQualityOfLife(userInput, level);
+  const normalizedQoL = normalizeQoL(qol);
+  
+  // 获取官职名称
+  const levelData = LEVEL_MAPPING.find(m => m.level === level);
+  const title = levelData?.title || '未知';
+  
+  // 调用新的场景生成器（传入官职名称）
+  const scene = generateScene(userInput, level, title, normalizedQoL);
   return {
     morning: scene.morning,
     afternoon: scene.afternoon,
@@ -879,135 +1372,84 @@ export function generateDailyLife(
   };
 }
 
-// 根据用户输入生成个性化评语
+// 根据用户输入生成个性化评语（简短版，仅用于履历评述）
 export function generatePersonalizedComment(
-  userInput: UserInput
+  userInput: UserInput,
+  level: number
 ): string {
-  const parts: string[] = [];
+  const qol = calculateQualityOfLife(userInput, level);
+  const specialCombo = getSpecialComboDesc(userInput);
   
-  // 注意：职业特色描述已在"古今对照"部分显示，此处不再重复
-  
-  // 工作年限描述
-  const workYearsDesc: Record<string, string> = {
-    '0-1': '初入此道，虽有热忱却经验尚浅',
-    '1-3': '历练数载，已能独当一面',
-    '3-5': '技艺日精，堪当大任',
-    '5-8': '经验老到，乃同侪之翘楚',
-    '8-15': '资深行家，后辈争相请教',
-    '15+': '此道宗师，德高望重'
-  };
-  parts.push(workYearsDesc[userInput.workYears] || '');
-  
-  // 工作环境与福利结合描述
-  const envBenefitCombined: Record<string, Record<string, string>> = {
-    'remote': {
-      'excellent': '居家办公，恩遇优渥，不出门户而坐收厚禄',
-      'good': '深居简出，待遇尚可，图个清静自在',
-      'average': '虽省了车马劳顿，奈何俸禄平平',
-      'poor': '在家苦熬，收入微薄，日子捉襟见肘'
-    },
-    'office': {
-      'excellent': '高堂广厦，锦衣玉食，朝廷恩宠有加',
-      'good': '正俸按时，偶有赏赐，生活安稳体面',
-      'average': '仅有正俸，精打细算，勉强度日',
-      'poor': '俸禄微薄，入不敷出，苦不堪言'
-    },
-    'hybrid': {
-      'excellent': '亦官亦隐，进退自如，恩遇优厚',
-      'good': '动静皆宜，待遇不薄，倒也逍遥',
-      'average': '时而奔波时而闲，收入平平',
-      'poor': '两头跑却两头空，甚是辛苦'
-    },
-    'outdoor': {
-      'excellent': '虽风餐露宿，然赏赐丰厚，苦中有甜',
-      'good': '披星戴月，好在俸禄尚可，不负辛劳',
-      'average': '在外奔波，收入一般，聊以糊口',
-      'poor': '风吹日晒，所得甚微，实在艰辛'
-    }
-  };
-  
-  const envBenefitDesc = envBenefitCombined[userInput.workEnv]?.[userInput.benefits];
-  if (envBenefitDesc) {
-    parts.push(envBenefitDesc);
+  // 如果有特殊组合，直接返回
+  if (specialCombo) {
+    return specialCombo;
   }
   
-  // 城市级别描述
-  const cityDesc: Record<string, string> = {
-    '1': '身居京师，寸土寸金，压力山大',
-    '2': '居于省城，繁华之地，机遇与挑战并存',
-    '3': '住在府城，商贾云集，生活便利',
-    '4': '居于县城，节奏舒缓，安居乐业',
-    '5': '身处乡野，宁静致远，别有天地'
-  };
-  parts.push(cityDesc[userInput.cityTier] || '');
-  
-  // 加班频率描述
-  const overtimeDesc: Record<string, string> = {
-    'flex': '弹性自由，逍遥自在',
-    'normal': '按时收工，朝九晚六，难得悠闲',
-    'occasional': '月末年末偶有忙碌，尚能接受',
-    'frequent': '常需加班，日夜操劳，甚是辛苦',
-    '996': '早九晚九，周六亦不得闲，苦不堪言',
-    'extreme': '终日忙碌，焚膏继晷，不知休息为何物'
-  };
-  parts.push(overtimeDesc[userInput.overtimeFreq] || '');
-  
-  return parts.filter(Boolean).join('；');
+  // 否则返回生活质量总评
+  return getQoLComment(qol);
 }
 
-// 生成增强版判词（在基础判词上叠加个性化修饰）
+// 生成增强版判词（使用加权决策树）
 export function generateEnhancedVerdict(
   baseVerdict: string,
+  userInput: UserInput,
+  level: number
+): string {
+  const qol = calculateQualityOfLife(userInput, level);
+  const specialCombo = getSpecialComboDesc(userInput);
+  
+  // 构建评语：基础官职描述 + 修饰因素 + 总评
+  const parts: string[] = [];
+  
+  // 1. 基础官职描述
+  parts.push(baseVerdict);
+  
+  // 2. 年限和加班（合并为一句）
+  parts.push(`${YEARS_DESC[userInput.workYears]}，${OVERTIME_DESC[userInput.overtimeFreq]}`);
+  
+  // 3. 城市和福利（合并为一句）
+  const cityShort = userInput.cityTier === '1' ? '身居京师' : 
+                    userInput.cityTier === '2' ? '居于省城' :
+                    userInput.cityTier === '3' ? '住在府城' :
+                    userInput.cityTier === '4' ? '居于县城' : '身处小城';
+  const benefitsShort = userInput.benefits === 'excellent' ? '恩赏优厚' :
+                        userInput.benefits === 'good' ? '待遇尚可' :
+                        userInput.benefits === 'average' ? '俸禄平平' : '俸禄微薄';
+  parts.push(`${cityShort}，${benefitsShort}`);
+  
+  // 4. 特殊组合或生活质量总评
+  if (specialCombo) {
+    parts.push(specialCombo);
+  } else {
+    parts.push(getQoLComment(qol));
+  }
+  
+  return parts.join('。');
+}
+
+// ========== 历史人物动态调整 ==========
+
+/**
+ * 根据生活质量调整后获取历史人物对照
+ * @param level 原始等级
+ * @param userInput 用户输入
+ * @returns 调整后的历史人物
+ */
+export function getAdjustedHistoricalFigure(
+  level: number,
   userInput: UserInput
 ): string {
-  const occupationConfig = getOccupationTypeConfig(userInput.occupationType);
+  const qol = calculateQualityOfLife(userInput, level);
+  const adjustedLevel = adjustLevelByQoL(level, qol);
   
-  // 根据工作年限选择修饰语
-  const yearsModifier: Record<string, string> = {
-    '0-1': '虽为新进，',
-    '1-3': '已有小成，',
-    '3-5': '渐入佳境，',
-    '5-8': '积年历练，',
-    '8-15': '久经沙场，',
-    '15+': '阅历丰富，'
-  };
+  // 获取调整后等级对应的历史人物
+  const adjustedMapping = LEVEL_MAPPING.find(m => m.level === adjustedLevel);
   
-  // 根据福利选择修饰语
-  const benefitsModifier: Record<string, string> = {
-    'excellent': '恩遇优渥，',
-    'good': '待遇尚可，',
-    'average': '虽俸禄平平，',
-    'poor': '虽清贫度日，'
-  };
+  if (adjustedMapping?.historicalFigure) {
+    return adjustedMapping.historicalFigure;
+  }
   
-  // 组合修饰语：职业描述 + 年限 + 福利
-  let prefix = `身为${occupationConfig.ancientRole}，${occupationConfig.desc}。`;
-  prefix += yearsModifier[userInput.workYears] || '';
-  prefix += benefitsModifier[userInput.benefits] || '';
-  
-  // 在判词中插入个性化内容
-  const enhancedVerdict = prefix + baseVerdict;
-  
-  return enhancedVerdict;
+  // 如果没有找到，返回原等级的历史人物
+  const originalMapping = LEVEL_MAPPING.find(m => m.level === level);
+  return originalMapping?.historicalFigure || '古代某官吏';
 }
-
-// ========== 旧版接口兼容（已废弃但保留导出） ==========
-
-// 旧版 matchOccupation - 已废弃，仅为向后兼容
-export function matchOccupation(_occupation: string): { ancientRole: string; ancientDesc: string; verdictPrefix: string } {
-  // 简单返回默认值，不再做关键词匹配
-  return {
-    ancientRole: '市井闲人',
-    ancientDesc: '混迹于市井之间',
-    verdictPrefix: '勤勉本分，'
-  };
-}
-
-// 旧版 DEFAULT_OCCUPATION - 已废弃
-export const DEFAULT_OCCUPATION = {
-  keywords: [],
-  ancientRole: '市井闲人',
-  ancientDesc: '混迹于市井之间',
-  dailyActivities: { morning: [], afternoon: [], evening: [] },
-  verdictPrefix: '勤勉本分，'
-};
