@@ -21,15 +21,15 @@ export function generateScene(
   userInput: UserInput,
   level: number,
   title: string,
-  normalizedQoL: number
+  _normalizedQoL: number  // 加下划线表示有意未使用，避免 lint 警告
 ): SceneContent {
   // 1. 根据官职名称和等级识别官职类型
   const category = classifyOccupationWithLevel(title, level);
   
-  // 2. 根据官职类型和加班强度获取基础场景
-  const baseScene = getSceneByCategory(category, userInput.overtimeFreq);
+  // 2. 根据官职类型获取基础场景（主要用于mood）
+  const baseScene = getSceneByCategory(category);
   
-  // 3. 应用修饰（城市、年限、福利等）
+  // 3. 应用修饰（城市、年限、福利等）+ level专属场景
   const finalScene = applySceneModifiers(baseScene, {
     workEnv: userInput.workEnv,
     cityTier: userInput.cityTier,

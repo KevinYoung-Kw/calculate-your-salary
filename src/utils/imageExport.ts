@@ -88,20 +88,13 @@ export async function exportElementToImage(
         }
         return true;
       } : undefined,
-      // 关键选项：处理外部资源
-      fetchRequestInit: {
-        mode: 'cors',
-        credentials: 'omit',
-      },
-      // 嵌入字体
-      embedWebFonts: true,
       // 处理图片
       onCloneNode: (node) => {
         // 确保图片有 crossOrigin 属性
         if (node instanceof HTMLImageElement) {
           node.crossOrigin = 'anonymous';
         }
-        return node;
+        // 不返回值，符合类型定义
       },
     });
     
@@ -147,11 +140,6 @@ export async function exportElementToBlob(
       }
       return true;
     } : undefined,
-    fetchRequestInit: {
-      mode: 'cors',
-      credentials: 'omit',
-    },
-    embedWebFonts: true,
   });
   
   if (!blob) {

@@ -530,30 +530,10 @@ const SCENE_BY_OCCUPATION: Record<OccupationCategory, SceneContent> = {
 
   // ========== 文人师爷：师爷、幕僚、教谕等 ==========
   scholar: {
-    normal: {
-      morning: '卯时起身，从容用过早膳。换上整洁的长衫，踱步前往衙门（或学堂）。晨光熹微，街市渐渐热闹，心情颇为舒畅。',
-      afternoon: '午后处理案牍（或教授学生），偶与同僚商议。茶歇时分品一盏香茗，工作虽忙却也有条不紊。',
-      evening: '酉时准时散衙，夕阳西下。归家路上逛逛书肆，买本新书。晚饭后在灯下读书，日子平淡却充实。',
-      mood: '岁月静好，心境平和'
-    },
-    flex: {
-      morning: '辰时方起，睡到自然醒。从容用过早膳，在家中书房便可开始处理事务。',
-      afternoon: '处理案牍，累了便歇歇。无人催促，自己安排节奏。午后品茶读书，好不惬意。',
-      evening: '傍晚收工，或约三五好友小聚，或独自品酒读书。没有应酬的烦恼，这般自在也值了。',
-      mood: '逍遥自在，随心所欲'
-    },
-    frequent: {
-      morning: '卯时起身，匆匆用过早膳便往衙门赶。最近公务繁忙，得早些到。',
-      afternoon: '处理案牍，午膳简单对付便继续忙碌。同僚们都在赶工，气氛有些紧张。',
-      evening: '戌时方能离开衙门。归家时已是夜色渐深，简单吃过晚饭便倒头大睡。',
-      mood: '忙是忙些，熬过这阵就好'
-    },
-    '996': {
-      morning: '卯时天未亮，便被催促起身。匆匆用过早膳，便赶往衙门。路上行人稀少，唯有同样赶早的官员三五结伴。',
-      afternoon: '午后依然伏案，处理公文、审核卷宗。膳食简单对付，不敢多歇，唯恐耽误公务。同僚皆埋头苦干，鲜有言语。',
-      evening: '日落西山，衙门内却灯火通明。戌时、亥时......不知何时方能归家。月色清冷，只盼明日能早些完工。',
-      mood: '身心俱疲，只盼熬过这一关'
-    }
+    morning: '卯时起身，从容用过早膳。换上整洁的长衫，踱步前往衙门（或学堂）。晨光熹微，街市渐渐热闹，心情颇为舒畅。',
+    afternoon: '午后处理案牍（或教授学生），偶与同僚商议。茶歇时分品一盏香茗，工作虽忙却也有条不紊。',
+    evening: '酉时准时散衙，夕阳西下。归家路上逛逛书肆，买本新书。晚饭后在灯下读书，日子平淡却充实。',
+    mood: '岁月静好，心境平和'
   },
 
   // ========== 正式官员：县丞、知县、知府等 ==========
@@ -571,12 +551,6 @@ const SCENE_BY_OCCUPATION: Record<OccupationCategory, SceneContent> = {
     evening: '酉时散衙，归府。府邸宏伟，亭台楼阁，奇花异石。与家人共进晚宴，饭后或在戏台听戏，或在书房品鉴古玩。',
     mood: '位极人臣，荣华富贵'
   },
-    frequent: {
-    morning: '卯时起身，仆人伺候着洗漱更衣。用过早膳，乘轿前往衙门。今日军政要务繁多，需审慎决断。',
-    afternoon: '召集封疆大吏议事，审核各道府奏章，裁决军政大事。午后还要接待朝廷钦差，处理边防军务，片刻不得闲。',
-    evening: '傍晚散衙后还有诸多应酬——或是同僚聚会商议大事，或是皇亲国戚宴请。深夜归府，身心俱疲，却不敢有丝毫懈怠。',
-    mood: '位极人臣，日理万机'
-  },
 
   // ========== 皇室成员：亲王、郡王、太子、皇帝等 ==========
   royal: {
@@ -584,38 +558,18 @@ const SCENE_BY_OCCUPATION: Record<OccupationCategory, SceneContent> = {
     afternoon: '午后召见大臣议政，或在书房习字作画。时有妃嫔前来请安，宫中莺歌燕舞，奢华至极。午膳依然是满汉全席，珍馐百味。',
     evening: '傍晚在御花园赏花观景，或在养心殿批阅奏章。晚膳后或召妃嫔侍寝，或独处书房。宫中灯火辉煌，夜夜笙歌。',
     mood: '富有四海，天下至尊'
-  },
-    
+  }
 };
 
 /**
- * 根据官职类型和加班强度获取场景
+ * 根据官职类型获取基础场景（主要用于mood）
  * @param category 官职类型
- * @param overtime 加班强度
  * @returns 场景内容
  */
 export function getSceneByCategory(
-  category: OccupationCategory,
-  overtime: string
+  category: OccupationCategory
 ): SceneContent {
-  const templates = SCENE_BY_OCCUPATION[category];
-  
-  if (!templates) {
-    return DEFAULT_SCENE;
-  }
-  
-  // 按加班强度选择场景
-  const overtimeKey = overtime as keyof SceneTemplates;
-  if (templates[overtimeKey]) {
-    return { ...templates[overtimeKey]! };
-  }
-  
-  // 回退到normal
-  if (templates.normal) {
-    return { ...templates.normal };
-  }
-  
-  return DEFAULT_SCENE;
+  return SCENE_BY_OCCUPATION[category] || DEFAULT_SCENE;
 }
 
 /**

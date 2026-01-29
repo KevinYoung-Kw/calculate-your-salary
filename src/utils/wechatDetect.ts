@@ -20,7 +20,8 @@ export function isWechatMiniProgram(): boolean {
  * 检测是否支持原生分享
  */
 export function canNativeShare(): boolean {
-  return !!(navigator.share && navigator.canShare);
+  // 检查是否支持 navigator.share API
+  return !!(navigator.share);
 }
 
 /**
