@@ -14,6 +14,7 @@ export default defineConfig({
   },
   preview: {
     port: 8527,
-    host: true,
+    host: '0.0.0.0',
+    strictPort: true,
   },
 });
