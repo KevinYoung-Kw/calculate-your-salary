@@ -1,4 +1,4 @@
-import { ExternalLink, Video, Heart, X } from 'lucide-react';
+import { ExternalLink, Video, Heart, X, Github } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -41,6 +41,11 @@ export function Footer() {
           label="小红书"
           icon={<Heart className="w-4 h-4" />}
         />
+        <div className="w-px h-4 bg-[#8B7355]/30"></div>
+        <a href="https://github.com/KevinYoung-Kw/calculate-your-salary" target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2 text-[#8B7355] hover:text-[#2E4A62] transition-all duration-300">
+          <span className="p-1.5 rounded-full bg-[#8B7355]/10 group-hover:bg-[#2E4A62]/10 transition-colors"><Github className="w-4 h-4" /></span>
+          <span className="text-sm font-ancient border-b border-transparent group-hover:border-[#2E4A62] transition-all">开源地址</span>
+        </a>
       </div>
     </footer>
   );
