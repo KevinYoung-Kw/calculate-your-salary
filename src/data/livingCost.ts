@@ -18,6 +18,8 @@ export interface LivingCostCategory {
   perCapitaFactor: number; // 人均系数（1人=此系数，5人=1）
   upgradeRate: number;    // 消费升级系数（收入每增加100两，此项支出增加的比例）
   isFood: boolean;        // 是否为食物类支出（用于计算恩格尔系数）
+  essential: boolean;     // 是否为必需支出（非必需支出在低收入时大幅减少）
+  minIncomeThreshold?: number; // 最低收入门槛（两/年），低于此值时大幅减少
 }
 
 // 基础支出分类（基于史料）
@@ -30,7 +32,8 @@ export const LIVING_COST_CATEGORIES: LivingCostCategory[] = [
     description: '一日三餐之主食',
     perCapitaFactor: 0.3,
     upgradeRate: 0.02,    // 主食升级空间小
-    isFood: true
+    isFood: true,
+    essential: true       // 必需支出
   },
   { 
     id: 'food_side',
@@ -39,7 +42,8 @@ export const LIVING_COST_CATEGORIES: LivingCostCategory[] = [
     description: '油盐酱醋、鱼肉蔬果',
     perCapitaFactor: 0.35,
     upgradeRate: 0.08,    // 副食升级空间大（穷人素食，富人鱼肉）
-    isFood: true
+    isFood: true,
+    essential: true       // 必需支出
   },
   { 
     id: 'clothing',
@@ -48,7 +52,8 @@ export const LIVING_COST_CATEGORIES: LivingCostCategory[] = [
     description: '四季衣裳、鞋帽布料',
     perCapitaFactor: 0.4,
     upgradeRate: 0.10,    // 衣着升级明显（布衣→绸缎）
-    isFood: false
+    isFood: false,
+    essential: true       // 必需支出
   },
   { 
     id: 'fuel',
@@ -57,7 +62,8 @@ export const LIVING_COST_CATEGORIES: LivingCostCategory[] = [
     description: '柴炭蜡烛、取暖照明',
     perCapitaFactor: 0.5,
     upgradeRate: 0.03,    // 燃料升级空间小
-    isFood: false
+    isFood: false,
+    essential: true       // 必需支出
   },
   { 
     id: 'medical',
@@ -66,7 +72,9 @@ export const LIVING_COST_CATEGORIES: LivingCostCategory[] = [
     description: '小病小灾、汤药调理',
     perCapitaFactor: 0.4,
     upgradeRate: 0.05,    // 医药随收入增加
-    isFood: false
+    isFood: false,
+    essential: false,     // 非必需（穷人生病硬扛）
+    minIncomeThreshold: 25  // 低于25两/年时大幅减少
   },
   { 
     id: 'housing',
@@ -75,7 +83,8 @@ export const LIVING_COST_CATEGORIES: LivingCostCategory[] = [
     description: '房租、修缮、家具',
     perCapitaFactor: 0.6,
     upgradeRate: 0.12,    // 住房升级明显
-    isFood: false
+    isFood: false,
+    essential: true       // 必需支出
   },
   { 
     id: 'social',
@@ -84,7 +93,9 @@ export const LIVING_COST_CATEGORIES: LivingCostCategory[] = [
     description: '红白喜事、节礼应酬',
     perCapitaFactor: 0.5,
     upgradeRate: 0.15,    // 社交随身份地位增加
-    isFood: false
+    isFood: false,
+    essential: false,     // 非必需（穷人躲着走）
+    minIncomeThreshold: 30  // 低于30两/年时大幅减少
   },
   { 
     id: 'servant',
@@ -93,7 +104,9 @@ export const LIVING_COST_CATEGORIES: LivingCostCategory[] = [
     description: '仆人工钱、杂役开支',
     perCapitaFactor: 0.3,
     upgradeRate: 0.20,    // 只有富人才雇仆人
-    isFood: false
+    isFood: false,
+    essential: false,     // 非必需
+    minIncomeThreshold: 100  // 只有富人才雇得起
   },
 ];
 
@@ -193,6 +206,7 @@ export interface LivingCostResult {
     cost: number;
     ratio: number;
     description: string;
+    comment?: string;       // 动态评语
   }>;
   // 汇总
   totalCost: number;        // 年度总支出（两）
@@ -283,13 +297,41 @@ export function calculateLivingCosts(
       };
     }
     
-    // Step 3: 计算基础支出
-    const baseCostAdjusted = cat.baseCost * familyFactor * cityMultiplier;
+    // Step 3: 计算基础支出（考虑收入门槛）
+    let baseCostAdjusted = cat.baseCost * familyFactor * cityMultiplier;
+    
+    // 对于非必需支出，根据收入调整基础支出
+    if (!cat.essential && cat.minIncomeThreshold) {
+      if (salaryInTael < cat.minIncomeThreshold * 0.5) {
+        // 收入不足门槛一半：基础支出降到10%
+        baseCostAdjusted *= 0.1;
+      } else if (salaryInTael < cat.minIncomeThreshold) {
+        // 收入不足门槛：基础支出降到30%，线性过渡
+        const ratio = (salaryInTael / cat.minIncomeThreshold);
+        baseCostAdjusted *= (0.1 + 0.2 * ratio);
+      } else if (salaryInTael < cat.minIncomeThreshold * 1.5) {
+        // 收入刚超过门槛：基础支出30%-70%，线性过渡
+        const ratio = (salaryInTael - cat.minIncomeThreshold) / (cat.minIncomeThreshold * 0.5);
+        baseCostAdjusted *= (0.3 + 0.4 * ratio);
+      } else if (salaryInTael < cat.minIncomeThreshold * 2) {
+        // 收入超过门槛1.5倍：基础支出70%-100%，线性过渡
+        const ratio = (salaryInTael - cat.minIncomeThreshold * 1.5) / (cat.minIncomeThreshold * 0.5);
+        baseCostAdjusted *= (0.7 + 0.3 * ratio);
+      }
+      // 收入超过门槛2倍：正常基础支出
+    }
     
     // Step 4: 计算消费升级（收入越高，消费标准越高）
     // 公式：升级额度 = 收入 × 升级系数 × 家庭系数 × 城市系数
     // 但有上限：升级额度不超过基础支出的3倍
-    const upgradePotential = salaryInTael * cat.upgradeRate * (familyFactor / BASE_FAMILY_SIZE) * cityMultiplier;
+    let upgradePotential = salaryInTael * cat.upgradeRate * (familyFactor / BASE_FAMILY_SIZE) * cityMultiplier;
+    
+    // 对于非必需支出，低收入时升级空间也要限制
+    if (!cat.essential && cat.minIncomeThreshold && salaryInTael < cat.minIncomeThreshold * 2) {
+      const ratio = Math.min(1, salaryInTael / (cat.minIncomeThreshold * 2));
+      upgradePotential *= ratio;
+    }
+    
     const maxUpgrade = baseCostAdjusted * 3;
     const upgradeAmount = Math.min(upgradePotential, maxUpgrade);
     
@@ -360,11 +402,17 @@ export function calculateLivingCosts(
     }
   }
   
-  // 6. 与基准对比
+  // 6. 为每个支出项添加评语
+  const itemsWithComments = itemsWithRatio.map(item => ({
+    ...item,
+    comment: generateItemComment(item, salaryInTael, lifestyleLevel),
+  }));
+  
+  // 7. 与基准对比
   const baseCostForCity = BASE_ANNUAL_COST * cityMultiplier;
   
   return {
-    items: itemsWithRatio,
+    items: itemsWithComments,
     totalCost: Math.round(totalCost * 10) / 10,
     foodCost: Math.round(foodCost * 10) / 10,
     income: salaryInTael,
@@ -379,6 +427,106 @@ export function calculateLivingCosts(
       ratio: Math.round((totalCost / baseCostForCity) * 100) / 100,
     },
   };
+}
+
+// ========== 支出项评语生成 ==========
+/**
+ * 为支出项生成动态评语
+ * @param item 支出项
+ * @param income 年收入
+ * @param lifestyleLevel 生活水平
+ * @returns 评语
+ */
+export function generateItemComment(
+  item: { id: string; cost: number; ratio: number },
+  _income: number,  // 保留参数以备未来扩展
+  lifestyleLevel: LifestyleLevel
+): string {
+  const isPoor = lifestyleLevel.id === 'deficit' || lifestyleLevel.id === 'poor';
+  const isRich = lifestyleLevel.id === 'wealthy' || lifestyleLevel.id === 'elite';
+  
+  switch (item.id) {
+    case 'food_staple':
+      if (isPoor) {
+        return item.ratio > 0.35 ? '勉强糊口，粗粮度日' : '主食尚可';
+      } else if (isRich) {
+        return '细粮精米，应有尽有';
+      } else {
+        return '一日三餐，尚算温饱';
+      }
+      
+    case 'food_side':
+      if (isPoor) {
+        return item.cost < 3 ? '省吃俭用，难得荤腥' : '开源节流，少些彩头';
+      } else if (isRich) {
+        return '山珍海味，不亦乐乎';
+      } else {
+        return item.cost > 8 ? '偶有鱼肉，生活改善' : '粗茶淡饭，量入为出';
+      }
+      
+    case 'clothing':
+      if (isPoor) {
+        return item.cost < 2 ? '破旧衣裳，缝缝补补' : '粗布衣衫，将就度日';
+      } else if (isRich) {
+        return '绫罗绸缎，体面得很';
+      } else {
+        return '布衣粗服，尚可蔽体';
+      }
+      
+    case 'fuel':
+      if (isPoor) {
+        return item.cost < 2 ? '省油灯火，能省则省' : '柴薪不足，冬日难熬';
+      } else if (isRich) {
+        return '炭火常燃，不惧寒冬';
+      } else {
+        return '柴炭充足，取暖无忧';
+      }
+      
+    case 'medical':
+      if (item.cost < 1) {
+        return '小病硬扛，大病听天';
+      } else if (isPoor) {
+        return '偶备汤药，聊胜于无';
+      } else if (isRich) {
+        return '名医随诊，起居有常';
+      } else {
+        return '有备无患，未雨绸缪';
+      }
+      
+    case 'housing':
+      if (isPoor) {
+        return item.cost < 3 ? '茅屋陋室，遮风挡雨' : '租房栖身，难有积蓄';
+      } else if (isRich) {
+        return '深宅大院，气派非常';
+      } else {
+        return '砖瓦房舍，尚算安稳';
+      }
+      
+    case 'social':
+      if (item.cost < 1) {
+        return '囊中羞涩，少些往来';
+      } else if (isPoor) {
+        return '人情难却，勉力为之';
+      } else if (isRich) {
+        return '广结善缘，宾客盈门';
+      } else {
+        return item.cost > 5 ? '往来频繁，礼尚往来' : '量力而行，不失体面';
+      }
+      
+    case 'servant':
+      if (item.cost === 0) {
+        return ''; // 不显示评语
+      } else if (item.cost < 15) {
+        return '小有积蓄，略雇仆役';
+      } else if (item.cost < 30) {
+        return '仆从数人，颇为体面';
+      } else {
+        return '仆从成群，尽显富贵';
+      }
+      
+    default:
+      return '';
+  }
 }
 
 // ========== 古风描述生成 ==========

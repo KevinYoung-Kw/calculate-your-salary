@@ -102,7 +102,7 @@ const DEFAULT_FORM_DATA: UserInput = {
   bonus: 0,
   exchangeRate: 1000,
   silverPricePerGram: undefined,
-  familySize: 5,  // 默认五口之家（史料标准）
+  familySize: 1,  // 默认1人
   workYears: '1-3',
   workEnv: 'office',
   benefits: 'good',

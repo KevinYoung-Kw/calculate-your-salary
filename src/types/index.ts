@@ -81,14 +81,14 @@ export const CITY_TIER_OPTIONS = [
 
 // 家庭人口选项（需承担的开支人数）
 export const FAMILY_SIZE_OPTIONS = [
-  { value: 1, label: '1口（独身）', desc: '孑然一身，一人吃饱全家不饿' },
-  { value: 2, label: '2口（夫妻）', desc: '成家立业，夫妻二人' },
-  { value: 3, label: '3口（小家）', desc: '三口之家，添丁进口' },
-  { value: 4, label: '4口', desc: '四口之家，儿女双全' },
-  { value: 5, label: '5口（标准）', desc: '五口之家，古代标准家庭' },
-  { value: 6, label: '6口', desc: '六口之家，人丁兴旺' },
-  { value: 7, label: '7口', desc: '七口之家，子孙满堂' },
-  { value: 8, label: '8口及以上', desc: '大家庭，开支甚巨' },
+  { value: 1, label: '1人', desc: '独自一人，开支较轻' },
+  { value: 2, label: '2人', desc: '二人同行，相互扶持' },
+  { value: 3, label: '3人', desc: '三口之家，添丁进口' },
+  { value: 4, label: '4人', desc: '四口之家，负担渐重' },
+  { value: 5, label: '5人（标准）', desc: '五口之家，古代标准家庭' },
+  { value: 6, label: '6人', desc: '六口之家，人丁兴旺' },
+  { value: 7, label: '7人', desc: '七口之家，子孙满堂' },
+  { value: 8, label: '8人及以上', desc: '大家庭，开支甚巨' },
 ] as const;
 
 // 古代身份结果
