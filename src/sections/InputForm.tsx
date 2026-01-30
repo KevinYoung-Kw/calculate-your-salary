@@ -50,8 +50,8 @@ const OptionalMark = () => (
 // ========== 动态购买力平价模型（PPP）==========
 // 库平银标准：1两 = 37.3克
 const KUPING_SILVER_WEIGHT = 37.3;
-// 历史购买力锚点：明万历年间1两白银的购买力（约等于现代1000元人民币）
-const PPP_ANCHOR = 1000;
+// 历史购买力参考值：基于史料综合估算（参考值，非精确值）
+const PPP_ANCHOR = 600;
 // PPP混合权重：市价权重（0-1），剩余为历史购买力权重
 const MARKET_WEIGHT = 0.35;
 
@@ -102,6 +102,7 @@ const DEFAULT_FORM_DATA: UserInput = {
   bonus: 0,
   exchangeRate: 1000,
   silverPricePerGram: undefined,
+  calculationMode: 'weight',  // 默认克重换算
   familySize: 1,  // 默认1人
   workYears: '1-3',
   workEnv: 'office',
@@ -130,10 +131,20 @@ export default function InputForm({ onSubmit }: InputFormProps) {
     return calculatePPPExchangeRate(formData.silverPricePerGram);
   }, [formData.silverPricePerGram]);
 
-  // 当PPP计算结果变化时，更新汇率
-  const effectiveExchangeRate = formData.silverPricePerGram && formData.silverPricePerGram > 0 
-    ? pppResult.finalRate 
-    : formData.exchangeRate;
+  // 根据选择的计算模式确定有效汇率
+  const effectiveExchangeRate = useMemo(() => {
+    if (formData.calculationMode === 'weight') {
+      // 克重换算模式：使用白银克重 × 银价
+      const silverPrice = formData.silverPricePerGram || 16; 
+      return Math.round(KUPING_SILVER_WEIGHT * silverPrice);
+    } else {
+      // PPP模式：使用混合加权的购买力平价汇率
+      if (formData.silverPricePerGram && formData.silverPricePerGram > 0) {
+        return pppResult.finalRate;
+      }
+      return formData.exchangeRate;
+    }
+  }, [formData.calculationMode, formData.silverPricePerGram, formData.exchangeRate, pppResult.finalRate]);
   
   // 组件挂载时检查是否有缓存数据，提示用户
   const [showCacheHint, setShowCacheHint] = useState(false);
@@ -298,79 +309,168 @@ export default function InputForm({ onSubmit }: InputFormProps) {
                   <span className="text-xs text-[#8B7355] italic">参考《宛署杂记》· PPP模型</span>
                 </div>
                 
-                {/* 银价输入 - 选填 */}
-                <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-white/50 rounded border border-[#C9A961]/30">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                    <span className="text-[#5A4A3A] text-sm font-medium whitespace-nowrap flex items-center">
-                      今日银价
-                      <OptionalMark />
-                    </span>
-                    <input
-                      type="number"
-                      value={formData.silverPricePerGram || ''}
-                      onChange={(e) => updateFormData({ 
-                        ...formData, 
-                        silverPricePerGram: e.target.value ? Number(e.target.value) : undefined 
-                      })}
-                      placeholder="输入当前银价"
-                      className="ancient-input flex-1 text-center text-base sm:text-lg font-bold text-[#2E4A62]"
-                      min="0"
-                      step="0.01"
-                    />
-                    <span className="text-[#5A4A3A] text-sm whitespace-nowrap">元/克</span>
+                {/* 计算模式选择 */}
+                <div className="mb-3 p-2 bg-white/70 rounded border border-[#C9A961]/30">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updateFormData({ ...formData, calculationMode: 'weight' })}
+                      className={`px-3 py-2 rounded text-xs sm:text-sm transition-all ${
+                        formData.calculationMode === 'weight'
+                          ? 'bg-[#C9372C] text-white font-bold'
+                          : 'bg-white text-[#5A4A3A] hover:bg-[#C9372C]/10'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        <span>克重换算</span>
+                        <span className="text-[10px] opacity-70">简单直接</span>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateFormData({ ...formData, calculationMode: 'ppp' })}
+                      className={`px-3 py-2 rounded text-xs sm:text-sm transition-all ${
+                        formData.calculationMode === 'ppp'
+                          ? 'bg-[#2E4A62] text-white font-bold'
+                          : 'bg-white text-[#5A4A3A] hover:bg-[#2E4A62]/10'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        <span>PPP购买力</span>
+                        <span className="text-[10px] opacity-70">科学准确 ✓</span>
+                      </div>
+                    </button>
                   </div>
-                  <p className="text-xs text-[#8B7355] opacity-70">
-                    可查询今日实时银价填入，系统将自动计算PPP汇率
+                  <p className="text-[10px] text-[#8B7355] mt-2 text-center">
+                    {formData.calculationMode === 'weight' 
+                      ? '警告：克重换算仅考虑白银重量，不考虑历史购买力变化'
+                      : '推荐：PPP购买力平价参考史料，综合估算历史购买力'}
                   </p>
                 </div>
+                
+                {/* 克重模式：显示银价输入 */}
+                {formData.calculationMode === 'weight' && (
+                  <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-white/50 rounded border border-[#C9A961]/30">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                      <span className="text-[#5A4A3A] text-sm font-medium whitespace-nowrap flex items-center">
+                        今日银价
+                        <OptionalMark />
+                      </span>
+                      <input
+                        type="number"
+                        value={formData.silverPricePerGram || ''}
+                        onChange={(e) => updateFormData({ 
+                          ...formData, 
+                          silverPricePerGram: e.target.value ? Number(e.target.value) : undefined 
+                        })}
+                        placeholder="输入当前银价"
+                        className="ancient-input flex-1 text-center text-base sm:text-lg font-bold text-[#2E4A62]"
+                        min="0"
+                        step="0.01"
+                      />
+                      <span className="text-[#5A4A3A] text-sm whitespace-nowrap">元/克</span>
+                    </div>
+                    <p className="text-xs text-[#8B7355] opacity-70">
+                      可查询今日实时银价填入，按克重换算（默认6元/克）
+                    </p>
+                  </div>
+                )}
+                
+                {/* PPP模式：显示实物购买力说明 */}
+                {formData.calculationMode === 'ppp' && (
+                  <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-[#2E4A62]/5 rounded border border-[#2E4A62]/20">
+                    <div className="text-sm text-[#5A4A3A] space-y-2">
+                      <div className="flex items-start gap-2">
+                        <span className="text-[#2E4A62] font-bold text-lg">史</span>
+                        <div className="flex-1">
+                          <p className="font-medium text-[#2E4A62]">基于《宛署杂记》史料核算</p>
+                          <p className="text-xs text-[#8B7355] mt-1">明万历二十一年至二十四年（1593-1596年）北京宛平县实录物价</p>
+                        </div>
+                      </div>
+                      <div className="pl-6 space-y-1 text-xs leading-relaxed">
+                        <p className="text-[#5A4A3A]">
+                          <span className="font-medium">史料记载：</span>白米每石（约120市斤）售银0.6-0.7两
+                        </p>
+                        <p className="text-[#5A4A3A]">
+                          <span className="font-medium">换算：</span>1两白银 ≈ 购大米约<span className="text-[#C9372C] font-bold">170-200斤</span>
+                        </p>
+                        <p className="text-[#5A4A3A]">
+                          <span className="font-medium">现代米价：</span>约2.85元/斤（2026年1月商务部数据）
+                        </p>
+                        <p className="text-[#5A4A3A]">
+                          <span className="font-medium">米价基准：</span>180斤 × 2.85元/斤 ≈ 513元
+                        </p>
+                        <p className="text-[#2E4A62] font-bold">
+                          系统采用：1两白银 = 1000元（参考估算值）
+                        </p>
+                      </div>
+                      <div className="pt-2 border-t border-[#2E4A62]/10">
+                        <p className="text-xs text-[#8B7355] italic">
+                          说明：单纯米价换算约513元。考虑到明代与现代的生活成本结构差异（住房、交通、服务等占比不同）及通货因素，系统采用600元作为综合参考值，便于理解和对比
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* 汇率结果显示 */}
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
                   <span className="text-[#5A4A3A] text-sm sm:text-base">1两白银 =</span>
                   <div className="relative">
-                    <input
-                      type="number"
-                      value={effectiveExchangeRate}
-                      onChange={(e) => {
-                        // 手动修改时清除银价，使用手动输入的汇率
-                        updateFormData({ 
-                          ...formData, 
-                          exchangeRate: Number(e.target.value) || 1000,
-                          silverPricePerGram: undefined
-                        });
-                      }}
-                      className="ancient-input w-24 sm:w-28 text-center text-base sm:text-lg font-bold text-[#2E4A62]"
-                      min="1"
-                    />
-                    {formData.silverPricePerGram && formData.silverPricePerGram > 0 && (
-                      <span className="absolute -top-2 -right-2 w-4 h-4 bg-[#C9372C] rounded-full flex items-center justify-center">
-                        <span className="text-white text-xs">✓</span>
-                      </span>
+                    {formData.calculationMode === 'ppp' ? (
+                      // PPP模式：固定显示1000元
+                      <div className="ancient-input w-24 sm:w-28 text-center text-base sm:text-lg font-bold text-[#2E4A62] bg-[#2E4A62]/5 cursor-not-allowed">
+                        {PPP_ANCHOR}
+                      </div>
+                    ) : (
+                      // 克重模式：可编辑
+                      <input
+                        type="number"
+                        value={effectiveExchangeRate}
+                        onChange={(e) => {
+                          updateFormData({ 
+                            ...formData, 
+                            exchangeRate: Number(e.target.value) || 1000,
+                            silverPricePerGram: e.target.value ? formData.silverPricePerGram : undefined
+                          });
+                        }}
+                        className="ancient-input w-24 sm:w-28 text-center text-base sm:text-lg font-bold text-[#2E4A62]"
+                        min="1"
+                      />
                     )}
                   </div>
                   <span className="text-[#5A4A3A] text-sm sm:text-base">元人民币</span>
                 </div>
 
-                {/* 动态计算说明 */}
-                {formData.silverPricePerGram && formData.silverPricePerGram > 0 ? (
-                  <div className="text-xs text-[#5A4A3A] mt-2 sm:mt-3 p-2 bg-[#F5E6C8]/50 rounded border-l-2 border-[#C9372C]">
-                    <p className="leading-relaxed">
-                      <span className="italic">系统依据阁下录入之银价，结合《宛署杂记》中史实进行购买力平价（PPP）校正。</span>
-                    </p>
-                    <p className="mt-1 leading-relaxed">
-                      <span className="text-[#8B7355]">
-                        基准市价：{formData.silverPricePerGram}元/克 × {KUPING_SILVER_WEIGHT}克/两 = {pppResult.marketRate}元/两
-                      </span>
-                    </p>
-                    <p className="mt-1 font-bold text-[#2E4A62]">
-                      最终核算：<span className="text-[#C9372C]">1两白银 ≈ {pppResult.finalRate}元人民币</span>
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-xs text-[#8B7355] mt-2 opacity-80">
-                    默认值1000元/两（明朝万历年间购买力锚点），您可输入今日银价自动计算，或直接手动调整
-                  </p>
-                )}
+                {/* 计算说明 */}
+                <div className="text-xs text-[#5A4A3A] mt-2 sm:mt-3 p-2 bg-[#F5E6C8]/50 rounded border-l-2 border-[#C9372C]">
+                  {formData.calculationMode === 'ppp' ? (
+                    <div>
+                      <p className="leading-relaxed">
+                        <span className="font-medium text-[#2E4A62]">PPP购买力平价模式</span>
+                        <br />
+                        参考《宛署杂记》《醒贪简要录》等史料，综合估算购买力
+                      </p>
+                      <p className="mt-1 font-bold text-[#C9372C]">
+                        1两白银 = {PPP_ANCHOR}元（参考值）
+                      </p>
+                      <p className="mt-1 text-[10px] text-[#8B7355] opacity-80">
+                        基于史料中米价、工钱等指标，结合现代生活成本结构综合估算
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="leading-relaxed">
+                        <span className="font-medium">克重换算模式</span>
+                        <br />
+                        当前银价 {formData.silverPricePerGram || 18}元/克 × 库平银{KUPING_SILVER_WEIGHT}克/两 = {effectiveExchangeRate}元/两
+                      </p>
+                      <p className="mt-1 text-[#C9372C] font-medium">
+                        ⚠️ 此模式仅考虑白银重量，未考虑购买力变化，结果可能偏差较大
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

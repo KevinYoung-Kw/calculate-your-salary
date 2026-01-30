@@ -527,7 +527,7 @@ export default function Result({ userInput, onReset }: ResultProps) {
                       {item.comment && (
                         <div className="mt-1 pl-2 border-l-2 border-[#C9A961]/30">
                           <span className="text-[10px] sm:text-xs text-[#8B7355] italic">
-                            💬 {item.comment}
+                            · {item.comment}
                           </span>
                         </div>
                       )}
@@ -652,7 +652,13 @@ export default function Result({ userInput, onReset }: ResultProps) {
             <div className="flex flex-col sm:flex-row justify-between items-center sm:items-end gap-4 pt-6 sm:pt-8 border-t-2 border-[#C9A961]/20">
               <div className="text-[#8B7355] text-[10px] sm:text-xs space-y-0.5 sm:space-y-1 text-center sm:text-left">
                 <p>官途算略 · 看看你穿越回古代的生活待遇如何</p>
-                <p>基于《宛署杂记》《醒贪简要录》核算</p>
+                <p>
+                  {userInput.calculationMode === 'ppp' ? (
+                    <span className="text-[#2E4A62] font-medium">PPP购买力平价模式 · 基于《宛署杂记》《醒贪简要录》核算</span>
+                  ) : (
+                    <span className="text-[#C9372C]">克重换算模式 · 未考虑购买力变化，结果仅供参考</span>
+                  )}
+                </p>
               </div>
               <div className="text-center sm:text-right">
                 <div className="font-ancient text-xl sm:text-2xl text-[#C9372C] relative inline-block px-3 sm:px-4 py-1.5 sm:py-2 border-2 border-[#C9372C] rounded-sm transform -rotate-2">
@@ -710,7 +716,7 @@ export default function Result({ userInput, onReset }: ResultProps) {
               <p>📱 点击"保存通关文牒"后，图片将在新窗口打开，请长按保存</p>
             )}
             {isWechat() && (
-              <p>💬 在微信中分享：点击右上角"..."菜单，选择"分享给朋友"</p>
+              <p>在微信中分享：点击右上角"..."菜单，选择"分享给朋友"</p>
             )}
           </div>
         )}

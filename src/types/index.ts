@@ -5,6 +5,7 @@ export interface UserInput {
   bonus: number;                   // 年终奖（元）
   exchangeRate: number;            // 汇率：1两白银 = X元人民币（由PPP模型计算得出）
   silverPricePerGram?: number;     // 今日银价（元/克），用于PPP计算
+  calculationMode: 'ppp' | 'weight';  // 计算模式：PPP购买力平价（科学）| 克重换算（简单但不科学）
   familySize: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;  // 家中几口人（需承担的开支人数）
   
   // 其他选项
